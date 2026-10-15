@@ -1,0 +1,23 @@
+{
+  "name": "cindermarch-operations-bot",
+  "version": "1.0.0",
+  "description": "Cindermarch Studio Operations Discord Bot for Terminal 6 Development",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "deploy:commands": "tsx src/deploy-commands.ts",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "discord.js": "^14.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.1",
+    "tsx": "^4.19.3",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.6"
+  }
+}

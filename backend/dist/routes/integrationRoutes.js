@@ -1,0 +1,296 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.integrationRouter = void 0;
+const express_1 = require("express");
+const connection_js_1 = require("../db/connection.js");
+const auth_js_1 = require("../middleware/auth.js");
+const uvcsService_js_1 = require("../services/uvcsService.js");
+const testReportService_js_1 = require("../services/testReportService.js");
+const discordLinkService_js_1 = require("../services/discordLinkService.js");
+const discordOutboxService_js_1 = require("../services/discordOutboxService.js");
+const reminderScheduler_js_1 = require("../services/reminderScheduler.js");
+exports.integrationRouter = (0, express_1.Router)();
+// 1. UVCS Provider Endpoints
+exports.integrationRouter.get('/uvcs/status', auth_js_1.authMiddleware, async (_req, res) => {
+    const status = await (0, uvcsService_js_1.getUVCSProvider)().getStatus();
+    res.json({ uvcs: status });
+});
+exports.integrationRouter.post('/uvcs/test', auth_js_1.authMiddleware, async (_req, res) => {
+    const result = await (0, uvcsService_js_1.getUVCSProvider)().testConnection();
+    res.json({ result });
+});
+exports.integrationRouter.get('/uvcs/changesets', auth_js_1.authMiddleware, (req, res) => {
+    const { taskId, author } = req.query;
+    const changesets = (0, uvcsService_js_1.getChangesets)({
+        taskId: taskId,
+        author: author
+    });
+    res.json({ changesets });
+});
+exports.integrationRouter.post('/uvcs/changesets', auth_js_1.authMiddleware, (req, res) => {
+    const { changesetId, repositoryId, branch, comment, author, affectedFiles, externalLink, taskId } = req.body;
+    if (!changesetId || !comment || !author) {
+        res.status(400).json({ error: 'Changeset ID, comment, and author are required.' });
+        return;
+    }
+    const cs = (0, uvcsService_js_1.recordChangeset)({
+        changesetId,
+        repositoryId,
+        branch,
+        comment,
+        author,
+        affectedFiles,
+        externalLink,
+        taskId
+    }, req.user.id);
+    res.status(201).json({ changeset: cs });
+});
+// 2. Unity Test Framework / CI Ingestion Endpoint
+// Supports API Key authentication so CI or Unity editor can push test reports directly
+exports.integrationRouter.post('/unity-test-report', (req, res) => {
+    const db = (0, connection_js_1.getDb)();
+    const cfgStmt = db.prepare('SELECT value_json FROM integration_configs WHERE key = ?');
+    const cfgRow = cfgStmt.get('unity_test_runner');
+    const config = cfgRow ? JSON.parse(cfgRow.value_json) : {};
+    const apiKeyHeader = req.headers['x-api-key'] || req.query.apiKey;
+    const expectedKey = config.apiToken || 'cm-test-ingest-token-t6-dev';
+    if (!apiKeyHeader || apiKeyHeader !== expectedKey) {
+        res.status(401).json({ error: 'Invalid or missing API key for test report ingestion.' });
+        return;
+    }
+    const { taskId, repositoryId, revision, unityVersion, testSuite, result, passedCount, failedCount, skippedCount, buildResult, runnerIdentity, startTime, endTime } = req.body;
+    if (!revision || !unityVersion || !testSuite || !result) {
+        res.status(400).json({
+            error: 'Missing required fields: revision, unityVersion, testSuite, and result are mandatory.'
+        });
+        return;
+    }
+    const report = (0, testReportService_js_1.createTestReport)({
+        taskId: taskId || null,
+        repositoryId: repositoryId || 'Terminal6-Main@cindermarch',
+        revision,
+        unityVersion,
+        testSuite,
+        result,
+        passedCount: Number(passedCount) || 0,
+        failedCount: Number(failedCount) || 0,
+        skippedCount: Number(skippedCount) || 0,
+        buildResult: buildResult || 'Success',
+        runnerIdentity: runnerIdentity || 'Unity Test Framework CLI Runner',
+        source: 'unity_ci',
+        verificationState: 'automated_verified',
+        startTime,
+        endTime
+    }, null, db);
+    res.status(201).json({
+        message: 'Unity test report ingested and verified successfully.',
+        report
+    });
+});
+// 3. Discord Operations Bot & Webhook Integration Management
+exports.integrationRouter.get('/discord', auth_js_1.authMiddleware, (req, res) => {
+    const db = (0, connection_js_1.getDb)();
+    const cfgStmt = db.prepare('SELECT value_json FROM integration_configs WHERE key = ?');
+    const cfgRow = cfgStmt.get('discord');
+    const webhookConfig = cfgRow ? JSON.parse(cfgRow.value_json) : { status: 'not_configured' };
+    // Check bot credentials in environment (never expose token secret!)
+    const botToken = process.env.DISCORD_BOT_TOKEN;
+    const clientId = process.env.DISCORD_CLIENT_ID || '';
+    const guildId = process.env.DISCORD_GUILD_ID || '';
+    const hasBotToken = !!(botToken && botToken.trim().length > 20);
+    const hasClientId = !!(clientId && clientId.trim().length > 5);
+    const hasGuildId = !!(guildId && guildId.trim().length > 5);
+    // Bot installation URL (Least privilege: Send Messages, Embed Links, Attach Files, Read History, Use Slash Commands)
+    // Permissions integer 379968
+    const inviteUrl = hasClientId
+        ? `https://discord.com/api/oauth2/authorize?client_id=${clientId}&permissions=379968&scope=bot%20applications.commands`
+        : null;
+    // Operational state
+    let botStatus = 'not_configured';
+    if (hasBotToken && hasClientId) {
+        botStatus = 'operational';
+    }
+    else if (hasBotToken || hasClientId || webhookConfig.webhookUrl) {
+        botStatus = 'configured';
+    }
+    // Guild config
+    const guildConfig = db.prepare(`
+    SELECT * FROM discord_guild_configs WHERE workspace_id = 'ws_cindermarch'
+  `).get();
+    // Account link for caller
+    const userLink = req.user ? (0, discordLinkService_js_1.getDiscordLinkByUserId)(req.user.id, db) : null;
+    // Outbox & Reminder Stats
+    const outboxStats = (0, discordOutboxService_js_1.getOutboxStats)(db);
+    const reminderStats = (0, reminderScheduler_js_1.getReminderStats)(db);
+    res.json({
+        bot: {
+            status: botStatus,
+            hasBotToken,
+            hasClientId,
+            hasGuildId,
+            clientId: clientId || null,
+            inviteUrl
+        },
+        userLink: userLink
+            ? {
+                isLinked: true,
+                discordUsername: userLink.discord_username,
+                discordUserId: userLink.discord_user_id,
+                verifiedAt: userLink.verified_at
+            }
+            : { isLinked: false },
+        guildConfig: guildConfig || null,
+        outboxStats,
+        reminderStats,
+        webhook: webhookConfig
+    });
+});
+// POST /api/integrations/discord/link/verify (User submits code from /link in Hub)
+exports.integrationRouter.post('/discord/link/verify', auth_js_1.authMiddleware, (req, res) => {
+    const { code } = req.body;
+    if (!code || typeof code !== 'string') {
+        res.status(400).json({ error: 'Verification code is required.' });
+        return;
+    }
+    const result = (0, discordLinkService_js_1.verifyLinkCode)(req.user.id, code.trim());
+    if (!result.success) {
+        res.status(400).json({ error: result.error });
+        return;
+    }
+    res.json({
+        success: true,
+        message: `Discord account @${result.link?.discord_username} successfully linked!`,
+        link: result.link
+    });
+});
+// POST /api/integrations/discord/link/unlink
+exports.integrationRouter.post('/discord/link/unlink', auth_js_1.authMiddleware, (req, res) => {
+    const success = (0, discordLinkService_js_1.unlinkDiscordAccount)(req.user.id, req.user.id);
+    if (!success) {
+        res.status(404).json({ error: 'No Discord account is currently linked to your profile.' });
+        return;
+    }
+    res.json({ success: true, message: 'Discord account successfully unlinked.' });
+});
+// PATCH /api/integrations/discord/guild-config
+exports.integrationRouter.patch('/discord/guild-config', auth_js_1.authMiddleware, (req, res) => {
+    const { guildId, guildName, announcementsChannelId, engineChannelId, qaChannelId, escalationChannelId, reminderPolicy } = req.body;
+    const db = (0, connection_js_1.getDb)();
+    const now = new Date().toISOString();
+    db.prepare(`
+    INSERT INTO discord_guild_configs (
+      id, workspace_id, guild_id, guild_name,
+      announcements_channel_id, engine_channel_id, qa_channel_id,
+      escalation_channel_id, reminder_policy_json, is_active, created_at, updated_at
+    ) VALUES ('dgc_ws_cindermarch', 'ws_cindermarch', ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+    ON CONFLICT(workspace_id) DO UPDATE SET
+      guild_id = COALESCE(excluded.guild_id, guild_id),
+      guild_name = COALESCE(excluded.guild_name, guild_name),
+      announcements_channel_id = excluded.announcements_channel_id,
+      engine_channel_id = excluded.engine_channel_id,
+      qa_channel_id = excluded.qa_channel_id,
+      escalation_channel_id = excluded.escalation_channel_id,
+      reminder_policy_json = COALESCE(excluded.reminder_policy_json, reminder_policy_json),
+      updated_at = excluded.updated_at
+  `).run(guildId || 'guild_cindermarch', guildName || 'Cindermarch Studio Operations', announcementsChannelId || null, engineChannelId || null, qaChannelId || null, escalationChannelId || null, reminderPolicy ? JSON.stringify(reminderPolicy) : null, now, now);
+    const updated = db.prepare("SELECT * FROM discord_guild_configs WHERE workspace_id = 'ws_cindermarch'").get();
+    res.json({ guildConfig: updated });
+});
+// POST /api/integrations/discord/dispatch-test (Queue a test announcement)
+exports.integrationRouter.post('/discord/dispatch-test', auth_js_1.authMiddleware, async (req, res) => {
+    const db = (0, connection_js_1.getDb)();
+    const event = (0, discordOutboxService_js_1.enqueueDiscordEvent)('test_ping', {
+        message: `Cindermarch Operations Bot connection test dispatched from Engine Hub by ${req.user.display_name} (${req.user.username}).`,
+        sender: req.user.display_name,
+        timestamp: new Date().toISOString()
+    }, 'announcements', null, 'ws_cindermarch', db);
+    // If webhook is also configured, send immediately to webhook
+    const cfgStmt = db.prepare('SELECT value_json FROM integration_configs WHERE key = ?');
+    const cfgRow = cfgStmt.get('discord');
+    const webhookConfig = cfgRow ? JSON.parse(cfgRow.value_json) : null;
+    let webhookResult = null;
+    if (webhookConfig?.webhookUrl && webhookConfig.webhookUrl.startsWith('https://discord.com/api/webhooks/')) {
+        try {
+            const fetchRes = await fetch(webhookConfig.webhookUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    content: `**[Cindermarch Operations Bot // Test Ping]**\nVerified dispatch from Terminal 6 Development Hub by **${req.user.display_name}**.`
+                })
+            });
+            webhookResult = { delivered: fetchRes.ok, status: fetchRes.status };
+        }
+        catch (err) {
+            webhookResult = { delivered: false, error: err.message };
+        }
+    }
+    res.json({
+        queued: true,
+        outboxEventId: event.id,
+        webhookResult,
+        message: 'Test event queued in Discord outbox and dispatched to configured endpoints.'
+    });
+});
+// POST /api/integrations/discord/test (Legacy Webhook test compatibility)
+exports.integrationRouter.post('/discord/test', auth_js_1.authMiddleware, async (req, res) => {
+    const { webhookUrl } = req.body;
+    if (!webhookUrl || !webhookUrl.startsWith('https://discord.com/api/webhooks/')) {
+        res.json({
+            connected: false,
+            status: 'not_configured',
+            message: 'Discord webhook URL is not configured or invalid. Enter a valid Discord webhook URL to test connection.'
+        });
+        return;
+    }
+    try {
+        const fetchRes = await fetch(webhookUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                content: `**[Cindermarch Engine Hub]** Connection test verified from Terminal 6 Development Hub by ${req.user.display_name}.`
+            })
+        });
+        if (fetchRes.ok) {
+            res.json({
+                connected: true,
+                status: 'connected',
+                message: 'Discord test ping sent successfully.'
+            });
+        }
+        else {
+            res.json({
+                connected: false,
+                status: 'error',
+                message: `Discord rejected webhook: HTTP ${fetchRes.status}`
+            });
+        }
+    }
+    catch (err) {
+        res.json({
+            connected: false,
+            status: 'error',
+            message: `Failed to reach Discord: ${err.message}`
+        });
+    }
+});
+exports.integrationRouter.patch('/discord', auth_js_1.authMiddleware, (req, res) => {
+    const { webhookUrl, channel, notifyOnReview, notifyOnComplete, notifyOnFailedTest } = req.body;
+    const db = (0, connection_js_1.getDb)();
+    const now = new Date().toISOString();
+    const status = webhookUrl && webhookUrl.startsWith('https://discord.com/') ? 'configured' : 'not_configured';
+    const updatedConfig = {
+        status,
+        webhookUrl: webhookUrl || '',
+        channel: channel || '#t6-dev-alerts',
+        notifyOnReview: !!notifyOnReview,
+        notifyOnComplete: !!notifyOnComplete,
+        notifyOnFailedTest: !!notifyOnFailedTest,
+        notes: status === 'configured' ? 'Webhook configured.' : 'Discord webhook not configured.'
+    };
+    db.prepare(`
+    INSERT INTO integration_configs (key, value_json, updated_at)
+    VALUES ('discord', ?, ?)
+    ON CONFLICT(key) DO UPDATE SET value_json = excluded.value_json, updated_at = excluded.updated_at
+  `).run(JSON.stringify(updatedConfig), now);
+    res.json({ discord: updatedConfig });
+});

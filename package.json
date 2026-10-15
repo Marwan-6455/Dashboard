@@ -1,0 +1,30 @@
+{
+  "name": "cindermarch-engine-hub",
+  "version": "1.0.0",
+  "description": "Cindermarch Studio Internal Development Hub - Terminal 6 Management",
+  "private": true,
+  "workspaces": [
+    "backend",
+    "frontend",
+    "services/discord-bot"
+  ],
+  "scripts": {
+    "dev:backend": "npm --prefix backend run dev",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "dev:bot": "npm --prefix services/discord-bot run dev",
+    "build:backend": "npm --prefix backend run build",
+    "build:frontend": "npm --prefix frontend run build",
+    "build:bot": "npm --prefix services/discord-bot run build",
+    "build": "npm run build:backend && npm run build:frontend && npm run build:bot",
+    "test:backend": "npm --prefix backend test",
+    "test:bot": "npm --prefix services/discord-bot test",
+    "test": "npm run test:backend && npm run test:bot",
+    "deploy:commands": "npm --prefix services/discord-bot run deploy:commands",
+    "seed": "npm --prefix backend run seed",
+    "start": "npm --prefix backend start",
+    "start:bot": "npm --prefix services/discord-bot start"
+  },
+  "keywords": ["cindermarch", "terminal-6", "game-dev", "uvcs", "management-hub"],
+  "author": "Cindermarch Studio",
+  "license": "UNLICENSED"
+}
