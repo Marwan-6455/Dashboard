@@ -9,6 +9,8 @@ interface AuthContextType {
   notifications: NotificationItem[];
   unreadNotificationsCount: number;
   isLoading: boolean;
+  activeProjectId: string;
+  setActiveProjectId: (projectId: string) => void;
   login: (username: string, password?: string) => Promise<void>;
   signup: (data: {
     username: string;
@@ -42,6 +44,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [unreadNotificationsCount, setUnreadNotificationsCount] = useState<number>(0);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [activeProjectId, setActiveProjectIdState] = useState<string>(() => {
+    return localStorage.getItem('cindermarch_active_project') || 'terminal-6';
+  });
+
+  const setActiveProjectId = (projectId: string) => {
+    setActiveProjectIdState(projectId);
+    localStorage.setItem('cindermarch_active_project', projectId);
+  };
 
   const refreshNotifications = useCallback(async () => {
     if (!user) return;
@@ -193,6 +203,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         notifications,
         unreadNotificationsCount,
         isLoading,
+        activeProjectId,
+        setActiveProjectId,
         login,
         signup,
         logout,

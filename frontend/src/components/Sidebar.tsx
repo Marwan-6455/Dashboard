@@ -16,7 +16,16 @@ import {
   ChevronLeft,
   ChevronRight,
   Bot,
-  User
+  User,
+  FolderKanban,
+  AlertCircle,
+  Box,
+  BookOpen,
+  Library,
+  GitPullRequest,
+  CalendarCheck,
+  Sparkles,
+  Megaphone
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.js';
 
@@ -65,9 +74,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const navSections: NavSection[] = [
     {
-      label: 'STUDIO OPERATIONS',
+      label: 'STUDIO COMMAND',
       items: [
         { id: 'overview', label: 'Overview', icon: LayoutDashboard },
+        { id: 'projects', label: 'Project HQ', icon: FolderKanban }
+      ]
+    },
+    {
+      label: 'WORKFLOW & TASKS',
+      items: [
         {
           id: 'my-tasks',
           label: 'My Tasks',
@@ -85,19 +100,33 @@ export const Sidebar: React.FC<SidebarProps> = ({
       ]
     },
     {
-      label: 'VERIFICATION & QUALITY',
+      label: 'QUALITY & ENGINEERING',
       items: [
-        { id: 'reviews', label: 'Reviews', icon: FileCheck2 },
-        { id: 'strikes', label: 'Strike History', icon: ShieldAlert },
+        { id: 'bugs', label: 'QA Bug Tracker', icon: AlertCircle },
+        { id: 'reviews', label: 'Peer Reviews', icon: FileCheck2 },
+        { id: 'builds-releases', label: 'Builds & Releases', icon: Layers },
+        { id: 'test-reports', label: 'Test Reports', icon: FileText },
         { id: 'evidence', label: 'Evidence', icon: FileImage },
-        { id: 'test-reports', label: 'Test Reports', icon: FileText }
+        { id: 'strikes', label: 'Strike History', icon: ShieldAlert }
       ]
     },
     {
-      label: 'PLATFORM & SYSTEM',
+      label: 'CREATIVE & ASSETS',
       items: [
+        { id: 'assets', label: 'Asset Vault', icon: Box },
+        { id: 'story-bible', label: 'Story Bible', icon: BookOpen },
+        { id: 'marketing', label: 'Marketing Calendar', icon: Megaphone }
+      ]
+    },
+    {
+      label: 'STUDIO INTEL & SYSTEM',
+      items: [
+        { id: 'ai-assistant', label: 'AI Assistant', icon: Sparkles },
+        { id: 'wiki', label: 'Studio Wiki', icon: Library },
+        { id: 'decisions', label: 'Decision Log', icon: GitPullRequest },
+        { id: 'standups-meetings', label: 'Standups & Mtgs', icon: CalendarCheck },
         { id: 'integrations', label: 'Integrations', icon: Bot },
-        { id: 'activity', label: 'Audit Activity', icon: History, badge: unreadNotificationsCount },
+        { id: 'activity', label: 'Audit Trail', icon: History, badge: unreadNotificationsCount },
         { id: 'settings', label: 'Settings', icon: Settings }
       ]
     }

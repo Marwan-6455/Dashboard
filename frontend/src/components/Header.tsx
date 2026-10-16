@@ -27,7 +27,9 @@ export const Header: React.FC<HeaderProps> = ({
     notifications,
     unreadNotificationsCount,
     markNotificationRead,
-    markAllNotificationsRead
+    markAllNotificationsRead,
+    activeProjectId,
+    setActiveProjectId
   } = useAuth();
 
   const [showNotifications, setShowNotifications] = useState(false);
@@ -52,11 +54,31 @@ export const Header: React.FC<HeaderProps> = ({
   const getPageTitle = (page: string) => {
     switch (page) {
       case 'overview':
-        return 'Overview';
+        return 'Studio Command Center';
+      case 'projects':
+        return 'Project HQ & Roadmaps';
       case 'tasks':
         return 'Development Tasks';
       case 'task-detail':
         return 'Task Specification';
+      case 'bugs':
+        return 'QA Lab & Bug Tracker';
+      case 'assets':
+        return 'Private Asset Vault';
+      case 'story-bible':
+        return 'Story Development Toolkit';
+      case 'wiki':
+        return 'Studio Wiki & Knowledge Base';
+      case 'decisions':
+        return 'Architecture Decision Records';
+      case 'standups-meetings':
+        return 'Daily Standups & Meetings';
+      case 'builds-releases':
+        return 'Unity Build & Release Center';
+      case 'marketing':
+        return 'Marketing & Release Calendar';
+      case 'ai-assistant':
+        return 'Cindermarch AI Assistant';
       case 'team':
         return 'Studio Departments & Teams';
       case 'reviews':
@@ -94,12 +116,50 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Studio Breadcrumb Trail */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px' }}>
           <span style={{ color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.04em' }}>
-            TERMINAL 6
+            {activeProjectId === 'blue-note-lounge' ? 'BLUE NOTE' : 'TERMINAL 6'}
           </span>
           <ChevronRight size={14} color="var(--border-strong)" />
           <span style={{ color: 'var(--text-white)', fontWeight: 700, letterSpacing: '-0.01em' }}>
             {getPageTitle(currentPage)}
           </span>
+        </div>
+
+        {/* Studio Active Project Selector */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginLeft: '6px' }}>
+          <button
+            type="button"
+            onClick={() => setActiveProjectId('terminal-6')}
+            style={{
+              padding: '3px 8px',
+              fontSize: '11px',
+              borderRadius: 'var(--radius-sm)',
+              border: activeProjectId === 'terminal-6' ? '1px solid var(--accent-orange)' : '1px solid var(--border-subtle)',
+              backgroundColor: activeProjectId === 'terminal-6' ? 'rgba(255, 94, 30, 0.15)' : 'var(--bg-elevated)',
+              color: activeProjectId === 'terminal-6' ? 'var(--accent-orange)' : 'var(--text-secondary)',
+              fontWeight: activeProjectId === 'terminal-6' ? 700 : 500,
+              cursor: 'pointer'
+            }}
+            title="Switch project context to Terminal 6"
+          >
+            T6
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveProjectId('blue-note-lounge')}
+            style={{
+              padding: '3px 8px',
+              fontSize: '11px',
+              borderRadius: 'var(--radius-sm)',
+              border: activeProjectId === 'blue-note-lounge' ? '1px solid var(--accent-orange)' : '1px solid var(--border-subtle)',
+              backgroundColor: activeProjectId === 'blue-note-lounge' ? 'rgba(255, 94, 30, 0.15)' : 'var(--bg-elevated)',
+              color: activeProjectId === 'blue-note-lounge' ? 'var(--accent-orange)' : 'var(--text-secondary)',
+              fontWeight: activeProjectId === 'blue-note-lounge' ? 700 : 500,
+              cursor: 'pointer'
+            }}
+            title="Switch project context to Blue Note Lounge"
+          >
+            BNL
+          </button>
         </div>
 
         {/* Engine Build Indicator */}

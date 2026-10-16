@@ -1,0 +1,41 @@
+services:
+  - type: web
+    name: cindermarch-hub
+    env: docker
+    dockerfilePath: Dockerfile
+    plan: standard
+    healthCheckPath: /health
+    disk:
+      name: cindermarch-data
+      mountPath: /app/data
+      sizeGB: 10
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3001
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: DISCORD_BOT_TOKEN
+        sync: false
+      - key: INTERNAL_BOT_API_KEY
+        generateValue: true
+
+  - type: worker
+    name: cindermarch-discord-bot
+    env: docker
+    dockerfilePath: Dockerfile
+    dockerCommand: node services/discord-bot/dist/index.js
+    plan: standard
+    envVars:
+      - key: HUB_API_URL
+        value: http://cindermarch-hub:3001/api/bot
+      - key: INTERNAL_BOT_API_KEY
+        fromService:
+          name: cindermarch-hub
+          type: web
+          envVarKey: INTERNAL_BOT_API_KEY
+      - key: DISCORD_BOT_TOKEN
+        sync: false

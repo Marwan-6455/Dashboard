@@ -190,3 +190,222 @@ CREATE TABLE IF NOT EXISTS integration_configs (
   value_json JSONB NOT NULL,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Teams table
+CREATE TABLE IF NOT EXISTS teams (
+  id VARCHAR(64) PRIMARY KEY,
+  workspace_id VARCHAR(64) NOT NULL,
+  name VARCHAR(128) NOT NULL,
+  slug VARCHAR(64) NOT NULL,
+  description TEXT NOT NULL,
+  manager_id VARCHAR(64) REFERENCES users(id) ON DELETE SET NULL,
+  project_id VARCHAR(64) REFERENCES projects(id) ON DELETE SET NULL,
+  discord_channel_id VARCHAR(64),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Milestones table
+CREATE TABLE IF NOT EXISTS milestones (
+  id VARCHAR(64) PRIMARY KEY,
+  project_id VARCHAR(64) NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  title VARCHAR(255) NOT NULL,
+  description TEXT,
+  target_date TIMESTAMPTZ NOT NULL,
+  owner_id VARCHAR(64) REFERENCES users(id),
+  status VARCHAR(32) NOT NULL CHECK(status IN ('Planned', 'In Progress', 'Completed', 'Delayed', 'Blocked')) DEFAULT 'Planned',
+  dependencies_json JSONB,
+  completion_requirements TEXT,
+  completed_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Sprints table
+CREATE TABLE IF NOT EXISTS sprints (
+  id VARCHAR(64) PRIMARY KEY,
+  project_id VARCHAR(64) NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  team_id VARCHAR(64) REFERENCES teams(id),
+  name VARCHAR(128) NOT NULL,
+  goal TEXT NOT NULL,
+  start_date TIMESTAMPTZ NOT NULL,
+  end_date TIMESTAMPTZ NOT NULL,
+  capacity_hours NUMERIC DEFAULT 0,
+  status VARCHAR(32) NOT NULL CHECK(status IN ('Planned', 'Active', 'Completed', 'Closed')) DEFAULT 'Planned',
+  retrospective_notes TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Bugs table
+CREATE TABLE IF NOT EXISTS bugs (
+  id VARCHAR(64) PRIMARY KEY,
+  project_id VARCHAR(64) NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  title VARCHAR(255) NOT NULL,
+  description TEXT NOT NULL,
+  severity VARCHAR(16) NOT NULL CHECK(severity IN ('Critical', 'Major', 'Minor', 'Trivial')) DEFAULT 'Major',
+  priority VARCHAR(8) NOT NULL CHECK(priority IN ('P0', 'P1', 'P2')) DEFAULT 'P1',
+  reporter_id VARCHAR(64) NOT NULL REFERENCES users(id),
+  assigned_to VARCHAR(64) REFERENCES users(id),
+  assigned_team_id VARCHAR(64) REFERENCES teams(id),
+  affected_build VARCHAR(64),
+  affected_platform VARCHAR(64) DEFAULT 'PC/Steam',
+  steps_to_reproduce TEXT,
+  expected_behavior TEXT,
+  actual_behavior TEXT,
+  related_task_id VARCHAR(64) REFERENCES tasks(id) ON DELETE SET NULL,
+  changeset_ref VARCHAR(64),
+  status VARCHAR(32) NOT NULL CHECK(status IN ('Reported', 'Confirmed', 'In Progress', 'Fixed', 'Verified', 'Rejected', 'Duplicate', 'Blocked', 'Reopened')) DEFAULT 'Reported',
+  resolution TEXT,
+  verified_by VARCHAR(64) REFERENCES users(id),
+  verified_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Assets Vault table
+CREATE TABLE IF NOT EXISTS assets (
+  id VARCHAR(64) PRIMARY KEY,
+  project_id VARCHAR(64) NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  team_id VARCHAR(64) REFERENCES teams(id),
+  name VARCHAR(255) NOT NULL,
+  category VARCHAR(32) NOT NULL,
+  description TEXT,
+  owner_id VARCHAR(64) NOT NULL REFERENCES users(id),
+  version VARCHAR(32) NOT NULL DEFAULT 'v1.0',
+  status VARCHAR(32) NOT NULL DEFAULT 'Proposed',
+  pipeline_stage VARCHAR(64),
+  tags_json JSONB,
+  preview_url TEXT,
+  file_path TEXT,
+  file_size BIGINT DEFAULT 0,
+  technical_meta_json JSONB,
+  linked_task_id VARCHAR(64) REFERENCES tasks(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Story Bible Entries table
+CREATE TABLE IF NOT EXISTS story_bible_entries (
+  id VARCHAR(64) PRIMARY KEY,
+  project_id VARCHAR(64) NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  category VARCHAR(32) NOT NULL,
+  title VARCHAR(255) NOT NULL,
+  summary TEXT NOT NULL,
+  body TEXT NOT NULL,
+  tags_json JSONB,
+  status VARCHAR(32) NOT NULL DEFAULT 'Draft',
+  author_id VARCHAR(64) NOT NULL REFERENCES users(id),
+  approved_by VARCHAR(64) REFERENCES users(id),
+  related_entries_json JSONB,
+  version VARCHAR(16) DEFAULT '1.0',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Studio Documents & Wiki table
+CREATE TABLE IF NOT EXISTS documents (
+  id VARCHAR(64) PRIMARY KEY,
+  workspace_id VARCHAR(64) NOT NULL,
+  project_id VARCHAR(64) REFERENCES projects(id) ON DELETE CASCADE,
+  team_id VARCHAR(64) REFERENCES teams(id),
+  category VARCHAR(32) NOT NULL,
+  title VARCHAR(255) NOT NULL,
+  content TEXT NOT NULL,
+  author_id VARCHAR(64) NOT NULL REFERENCES users(id),
+  last_edited_by VARCHAR(64) REFERENCES users(id),
+  tags_json JSONB,
+  is_pinned BOOLEAN NOT NULL DEFAULT FALSE,
+  version INTEGER NOT NULL DEFAULT 1,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Architecture Decisions Log (ADR)
+CREATE TABLE IF NOT EXISTS decisions (
+  id VARCHAR(64) PRIMARY KEY,
+  workspace_id VARCHAR(64) NOT NULL,
+  project_id VARCHAR(64) REFERENCES projects(id) ON DELETE CASCADE,
+  title VARCHAR(255) NOT NULL,
+  scope VARCHAR(64) NOT NULL,
+  context TEXT NOT NULL,
+  options_considered TEXT NOT NULL,
+  chosen_approach TEXT NOT NULL,
+  reasoning TEXT NOT NULL,
+  author_id VARCHAR(64) NOT NULL REFERENCES users(id),
+  status VARCHAR(32) NOT NULL DEFAULT 'Proposed',
+  approver_id VARCHAR(64) REFERENCES users(id),
+  superseded_by_id VARCHAR(64) REFERENCES decisions(id),
+  related_tasks_json JSONB,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Builds table
+CREATE TABLE IF NOT EXISTS builds (
+  id VARCHAR(64) PRIMARY KEY,
+  project_id VARCHAR(64) NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  build_number VARCHAR(32) NOT NULL,
+  version VARCHAR(32) NOT NULL,
+  branch VARCHAR(128) NOT NULL DEFAULT 'main',
+  changeset_id VARCHAR(64) REFERENCES uvcs_changesets(id),
+  build_target VARCHAR(32) NOT NULL DEFAULT 'Windows',
+  unity_version VARCHAR(32) NOT NULL DEFAULT '6000.0.25f1',
+  status VARCHAR(32) NOT NULL DEFAULT 'Queued',
+  test_report_id VARCHAR(64),
+  artifacts_json JSONB,
+  known_issues TEXT,
+  release_approved BOOLEAN NOT NULL DEFAULT FALSE,
+  release_approved_by VARCHAR(64) REFERENCES users(id),
+  changelog TEXT,
+  release_owner_id VARCHAR(64) REFERENCES users(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  completed_at TIMESTAMPTZ
+);
+
+-- Releases table
+CREATE TABLE IF NOT EXISTS releases (
+  id VARCHAR(64) PRIMARY KEY,
+  project_id VARCHAR(64) NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  name VARCHAR(128) NOT NULL,
+  version VARCHAR(32) NOT NULL,
+  build_id VARCHAR(64) REFERENCES builds(id),
+  status VARCHAR(32) NOT NULL DEFAULT 'Draft',
+  checklist_json JSONB,
+  target_date TIMESTAMPTZ,
+  released_at TIMESTAMPTZ,
+  notes TEXT,
+  created_by VARCHAR(64) NOT NULL REFERENCES users(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Marketing Items table
+CREATE TABLE IF NOT EXISTS marketing_items (
+  id VARCHAR(64) PRIMARY KEY,
+  project_id VARCHAR(64) NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  campaign VARCHAR(128) NOT NULL,
+  channel VARCHAR(32) NOT NULL,
+  title VARCHAR(255) NOT NULL,
+  copy TEXT NOT NULL,
+  creative_asset_ids_json JSONB,
+  scheduled_date TIMESTAMPTZ,
+  status VARCHAR(32) NOT NULL DEFAULT 'Idea',
+  owner_id VARCHAR(64) NOT NULL REFERENCES users(id),
+  external_url TEXT,
+  deliverables TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- AI Conversations table
+CREATE TABLE IF NOT EXISTS ai_conversations (
+  id VARCHAR(64) PRIMARY KEY,
+  user_id VARCHAR(64) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  workspace_id VARCHAR(64) NOT NULL,
+  project_id VARCHAR(64),
+  prompt TEXT NOT NULL,
+  response TEXT NOT NULL,
+  citations_json JSONB,
+  drafted_actions_json JSONB,
+  model_used VARCHAR(64) NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);

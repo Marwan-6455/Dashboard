@@ -1,0 +1,62 @@
+version: '3.8'
+
+services:
+  # Cindermarch Studio Operating System — Web Dashboard & API
+  cindermarch-hub:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cindermarch-engine-hub
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3001}:3001"
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - CLIENT_ORIGIN=${CLIENT_ORIGIN:-http://localhost:3001}
+      - SESSION_SECRET=${SESSION_SECRET:-cindermarch-cloud-prod-secret-change-me}
+      - DATABASE_PATH=/app/data/cindermarch.db
+      - DATABASE_URL=${DATABASE_URL:-}
+      - UPLOAD_DIR=/app/uploads
+      - MAX_FILE_SIZE_BYTES=${MAX_FILE_SIZE_BYTES:-104857600}
+      - INTERNAL_BOT_API_KEY=${INTERNAL_BOT_API_KEY:-cindermarch-internal-key-change-me}
+      - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN:-}
+      - DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID:-1560406066867478681}
+      - DISCORD_GUILD_ID=${DISCORD_GUILD_ID:-1394770347030483034}
+      - STUDIO_TIMEZONE=${STUDIO_TIMEZONE:-Africa/Cairo}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+    volumes:
+      - cindermarch_data:/app/data
+      - cindermarch_uploads:/app/uploads
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  # Cindermarch Operations Discord Bot (Independent Persistent Worker)
+  cindermarch-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cindermarch-discord-bot
+    restart: unless-stopped
+    command: ["node", "services/discord-bot/dist/index.js"]
+    depends_on:
+      cindermarch-hub:
+        condition: service_healthy
+    environment:
+      - NODE_ENV=production
+      - HUB_API_URL=http://cindermarch-hub:3001/api/bot
+      - HUB_WEB_URL=${CLIENT_ORIGIN:-http://localhost:3001}
+      - INTERNAL_BOT_API_KEY=${INTERNAL_BOT_API_KEY:-cindermarch-internal-key-change-me}
+      - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
+      - DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID:-1560406066867478681}
+      - DISCORD_GUILD_ID=${DISCORD_GUILD_ID:-1394770347030483034}
+
+volumes:
+  cindermarch_data:
+    name: cindermarch_studio_db_data
+  cindermarch_uploads:
+    name: cindermarch_studio_uploads

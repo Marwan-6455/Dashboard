@@ -273,3 +273,136 @@ Start both services:
 pm2 start ecosystem.config.cjs
 pm2 save
 ```
+
+---
+
+## 9. Private Cloud 24/7 Deployment (Zero PC Dependency)
+
+To ensure the Cindermarch Studio Operating System remains 100% operational when your personal PC is powered off:
+
+### Architecture Overview
+
+```
+                      +---------------------------------------+
+                      |       Internet / Cloud Provider       |
+                      |   (Railway / Render / Fly.io / VPS)   |
+                      +---------------------------------------+
+                                          |
+                      +---------------------------------------+
+                      |       Cloudflare / Managed TLS        |
+                      |        https://hub.cindermarch.com    |
+                      +---------------------------------------+
+                                          |
+          +-------------------------------+-------------------------------+
+          |                                                               |
++---------------------+                                         +-------------------+
+|  Cindermarch Hub    | <------ Private Internal Network -----> |  Discord Worker   |
+|  - Web UI (Port 3001)                                         |  - Slash Commands |
+|  - REST APIs        |                                         |  - Notifications  |
+|  - Task Machine     |                                         +-------------------+
+|  - Strike Engine    |                                                   |
+|  - Gemini AI Client |                                             Discord API
++---------------------+
+     |             |
+     v             v
++----------+ +-----------+
+| NVMe Vol | | NVMe Vol  |
+| /data    | | /uploads  |
++----------+ +-----------+
+```
+
+### Option 1: Docker Compose on Cloud VPS (DigitalOcean / Hetzner / AWS Lightsail)
+
+1. Clone repository to cloud VPS:
+   ```bash
+   git clone <repo-url> /opt/cindermarch-engine-hub
+   cd /opt/cindermarch-engine-hub
+   ```
+2. Configure `.env` from template:
+   ```bash
+   cp .env.example .env
+   nano .env
+   # Set CLIENT_ORIGIN, SESSION_SECRET, INTERNAL_BOT_API_KEY, DISCORD_BOT_TOKEN, GEMINI_API_KEY
+   ```
+3. Boot full multi-container stack:
+   ```bash
+   docker compose up -d --build
+   ```
+4. Verify health:
+   ```bash
+   curl http://localhost:3001/health
+   docker compose logs -f
+   ```
+
+### Option 2: Railway.app (One-Click Git Deployment)
+
+1. Connect GitHub repository to Railway.
+2. Service 1: `cindermarch-hub`
+   - Build Type: Dockerfile
+   - Port: 3001
+   - Add Persistent Volume mounted at `/app/data` (10GB)
+   - Add Persistent Volume mounted at `/app/uploads` (50GB)
+   - Add Environment Variables from `.env.example`
+3. Service 2: `cindermarch-bot`
+   - Command: `node services/discord-bot/dist/index.js`
+   - Add Environment Variables (`HUB_API_URL`, `INTERNAL_BOT_API_KEY`, `DISCORD_BOT_TOKEN`)
+
+### Option 3: Render.com Blueprint (`render.yaml`)
+
+```yaml
+services:
+  - type: web
+    name: cindermarch-hub
+    env: docker
+    dockerfilePath: Dockerfile
+    plan: standard
+    healthCheckPath: /health
+    disk:
+      name: cindermarch-data
+      mountPath: /app/data
+      sizeGB: 10
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3001
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: DISCORD_BOT_TOKEN
+        sync: false
+      - key: INTERNAL_BOT_API_KEY
+        generateValue: true
+
+  - type: worker
+    name: cindermarch-discord-bot
+    env: docker
+    dockerfilePath: Dockerfile
+    dockerCommand: node services/discord-bot/dist/index.js
+    plan: standard
+    envVars:
+      - key: HUB_API_URL
+        value: http://cindermarch-hub:3001/api/bot
+      - key: INTERNAL_BOT_API_KEY
+        fromService:
+          name: cindermarch-hub
+          type: web
+          envVarKey: INTERNAL_BOT_API_KEY
+      - key: DISCORD_BOT_TOKEN
+        sync: false
+```
+
+---
+
+## 10. Gemini Flash 3.8 / 2.5 Hosted AI Assistant Setup
+
+1. Obtain API key from Google AI Studio:
+   [https://aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey)
+2. Add to cloud environment:
+   ```
+   GEMINI_API_KEY=AIzaSy...
+   ```
+3. The server uses `gemini-2.5-flash` natively through Google Gemini API. If no key is set or the API is unreachable, the system automatically falls back to the internal authoritative studio telemetry engine with zero downtime.
+4. All prompts are strictly permission-scoped to the user's workspace, teams, and active project (`terminal-6` or `blue-note-lounge`).
+

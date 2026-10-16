@@ -16,6 +16,15 @@ import { IntegrationsPage } from './pages/IntegrationsPage.js';
 import { SettingsPage } from './pages/SettingsPage.js';
 import { StrikesPage } from './pages/StrikesPage.js';
 import { LoginPage } from './pages/LoginPage.js';
+import { ProjectsPage } from './pages/ProjectsPage.js';
+import { BugTrackerPage } from './pages/BugTrackerPage.js';
+import { AssetVaultPage } from './pages/AssetVaultPage.js';
+import { StoryBiblePage } from './pages/StoryBiblePage.js';
+import { WikiDocsPage } from './pages/WikiDocsPage.js';
+import { MeetingsStandupsPage } from './pages/MeetingsStandupsPage.js';
+import { BuildsReleasesPage } from './pages/BuildsReleasesPage.js';
+import { MarketingPage } from './pages/MarketingPage.js';
+import { AiAssistantPage } from './pages/AiAssistantPage.js';
 import { WorkspaceEntryModal } from './components/WorkspaceEntryModal.js';
 import { WorkspaceSuspendedScreen } from './components/WorkspaceSuspendedScreen.js';
 import { GlobalSearchModal } from './components/GlobalSearchModal.js';
@@ -286,6 +295,50 @@ export const App: React.FC = () => {
             onNavigateToTask={handleOpenTaskDetail}
             tasks={tasksList}
           />
+        )}
+
+        {currentPage === 'projects' && (
+          <ProjectsPage
+            onNavigate={handleNavigate}
+          />
+        )}
+
+        {currentPage === 'bugs' && (
+          <BugTrackerPage
+            onNavigateToTask={handleOpenTaskDetail}
+          />
+        )}
+
+        {currentPage === 'assets' && (
+          <AssetVaultPage />
+        )}
+
+        {currentPage === 'story-bible' && (
+          <StoryBiblePage />
+        )}
+
+        {(currentPage === 'wiki' || currentPage === 'decisions') && (
+          <WikiDocsPage
+            initialTab={currentPage === 'decisions' ? 'decisions' : 'docs'}
+          />
+        )}
+
+        {currentPage === 'standups-meetings' && (
+          <MeetingsStandupsPage />
+        )}
+
+        {currentPage === 'builds-releases' && (
+          <BuildsReleasesPage
+            onNavigateToReports={() => handleNavigate('test-reports')}
+          />
+        )}
+
+        {currentPage === 'marketing' && (
+          <MarketingPage />
+        )}
+
+        {currentPage === 'ai-assistant' && (
+          <AiAssistantPage />
         )}
 
         {currentPage === 'integrations' && <IntegrationsPage />}

@@ -20,7 +20,10 @@ import {
   Volume2,
   Activity,
   CheckCircle2,
-  RefreshCw
+  RefreshCw,
+  FolderKanban,
+  Bug,
+  Rocket
 } from 'lucide-react';
 import { StatusBadge } from '../components/StatusBadge.js';
 import { PriorityBadge } from '../components/PriorityBadge.js';
@@ -48,15 +51,21 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate, onOpenNe
   const { user } = useAuth();
   const [data, setData] = useState<any>(null);
   const [myStrikes, setMyStrikes] = useState<any>(null);
+  const [terminalHealth, setTerminalHealth] = useState<any>(null);
+  const [blueNoteHealth, setBlueNoteHealth] = useState<any>(null);
+  const [activeBugs, setActiveBugs] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const loadData = async () => {
     try {
       setIsLoading(true);
-      const [statsRes, strikeRes] = await Promise.allSettled([
+      const [statsRes, strikeRes, t6Res, bnlRes, bugsRes] = await Promise.allSettled([
         apiRequest('/api/stats/overview'),
-        apiRequest('/api/strikes/my-status')
+        apiRequest('/api/strikes/my-status'),
+        apiRequest('/api/projects/terminal-6/health'),
+        apiRequest('/api/projects/blue-note-lounge/health'),
+        apiRequest('/api/bugs?status=Reported')
       ]);
 
       if (statsRes.status === 'fulfilled') {
@@ -67,6 +76,15 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate, onOpenNe
 
       if (strikeRes.status === 'fulfilled') {
         setMyStrikes(strikeRes.value);
+      }
+      if (t6Res.status === 'fulfilled') {
+        setTerminalHealth(t6Res.value);
+      }
+      if (bnlRes.status === 'fulfilled') {
+        setBlueNoteHealth(bnlRes.value);
+      }
+      if (bugsRes.status === 'fulfilled') {
+        setActiveBugs(bugsRes.value.bugs || []);
       }
       setError(null);
     } catch (err: any) {
@@ -426,6 +444,194 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate, onOpenNe
               ? 'Clean disciplinary record'
               : `${myStrikes?.remainingStrikes || 0} strikes until suspension`}
           </div>
+        </div>
+      </div>
+
+      {/* Project Portfolio // Health & Telemetry */}
+      <div className="card" style={{ marginBottom: '24px' }}>
+        <div className="card-header">
+          <div className="card-title">
+            <FolderKanban size={17} color="var(--accent-orange)" />
+            <span>Studio Production Portfolio // Health & QA Signals</span>
+          </div>
+          <button className="btn btn-secondary btn-sm" onClick={() => onNavigate('projects')}>
+            Open Project HQ <ArrowRight size={13} />
+          </button>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '14px', marginBottom: '14px' }}>
+          {/* Terminal 6 Card */}
+          <div
+            style={{
+              padding: '16px',
+              backgroundColor: 'var(--bg-elevated)',
+              border: '1px solid var(--border-subtle)',
+              borderRadius: 'var(--radius-sm)',
+              cursor: 'pointer',
+              transition: 'all var(--transition-fast)'
+            }}
+            onClick={() => onNavigate('projects')}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+              <div>
+                <span style={{ fontSize: '10px', fontWeight: 800, color: 'var(--accent-orange)', letterSpacing: '0.05em' }}>
+                  PROJECT T6
+                </span>
+                <h4 style={{ fontSize: '15px', fontWeight: 800, color: 'var(--text-white)', margin: '2px 0 0' }}>
+                  Terminal 6
+                </h4>
+              </div>
+              <span
+                style={{
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  padding: '3px 8px',
+                  borderRadius: '12px',
+                  backgroundColor:
+                    (terminalHealth?.health === 'healthy' || terminalHealth?.status === 'Healthy')
+                      ? 'rgba(16, 185, 129, 0.15)'
+                      : (terminalHealth?.health === 'blocked' || terminalHealth?.status === 'Blocked')
+                      ? 'rgba(239, 68, 68, 0.15)'
+                      : 'rgba(245, 158, 11, 0.15)',
+                  color:
+                    (terminalHealth?.health === 'healthy' || terminalHealth?.status === 'Healthy')
+                      ? '#10B981'
+                      : (terminalHealth?.health === 'blocked' || terminalHealth?.status === 'Blocked')
+                      ? '#EF4444'
+                      : '#F59E0B',
+                  border: `1px solid ${
+                    (terminalHealth?.health === 'healthy' || terminalHealth?.status === 'Healthy')
+                      ? 'rgba(16, 185, 129, 0.3)'
+                      : (terminalHealth?.health === 'blocked' || terminalHealth?.status === 'Blocked')
+                      ? 'rgba(239, 68, 68, 0.3)'
+                      : 'rgba(245, 158, 11, 0.3)'
+                  }`
+                }}
+              >
+                {((terminalHealth?.health || terminalHealth?.status) || 'CALCULATING').toUpperCase().replace('_', ' ')}
+              </span>
+            </div>
+
+            <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '10px', height: '34px', overflow: 'hidden' }}>
+              Psychological horror narrative in an abandoned metro transit facility. Unity 2022.3 LTS.
+            </p>
+
+            <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginBottom: '8px' }}>
+              {terminalHealth?.reasons?.length > 0 ? (
+                <div style={{ color: 'var(--accent-orange)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <AlertTriangle size={12} />
+                  <span>{terminalHealth.reasons[0]}</span>
+                </div>
+              ) : (
+                <div style={{ color: '#10B981', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <CheckCircle2 size={12} />
+                  <span>Milestone progress on schedule, zero release blockers.</span>
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text-muted)', borderTop: '1px solid var(--border-subtle)', paddingTop: '8px' }}>
+              <span>Critical Bugs: <strong style={{ color: (terminalHealth?.metrics?.criticalBugs || 0) > 0 ? '#EF4444' : 'var(--text-white)' }}>{terminalHealth?.metrics?.criticalBugs || 0}</strong></span>
+              <span>Blocked Tasks: <strong style={{ color: (terminalHealth?.metrics?.blockedTasks || 0) > 0 ? '#EF4444' : 'var(--text-white)' }}>{terminalHealth?.metrics?.blockedTasks || 0}</strong></span>
+              <span>Overdue: <strong style={{ color: 'var(--text-white)' }}>{terminalHealth?.metrics?.overdueTasks || 0}</strong></span>
+            </div>
+          </div>
+
+          {/* Blue Note Lounge Card */}
+          <div
+            style={{
+              padding: '16px',
+              backgroundColor: 'var(--bg-elevated)',
+              border: '1px solid var(--border-subtle)',
+              borderRadius: 'var(--radius-sm)',
+              cursor: 'pointer',
+              transition: 'all var(--transition-fast)'
+            }}
+            onClick={() => onNavigate('projects')}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+              <div>
+                <span style={{ fontSize: '10px', fontWeight: 800, color: '#38BDF8', letterSpacing: '0.05em' }}>
+                  PROJECT BNL
+                </span>
+                <h4 style={{ fontSize: '15px', fontWeight: 800, color: 'var(--text-white)', margin: '2px 0 0' }}>
+                  Blue Note Lounge
+                </h4>
+              </div>
+              <span
+                style={{
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  padding: '3px 8px',
+                  borderRadius: '12px',
+                  backgroundColor:
+                    (blueNoteHealth?.health === 'healthy' || blueNoteHealth?.status === 'Healthy')
+                      ? 'rgba(16, 185, 129, 0.15)'
+                      : (blueNoteHealth?.health === 'blocked' || blueNoteHealth?.status === 'Blocked')
+                      ? 'rgba(239, 68, 68, 0.15)'
+                      : 'rgba(245, 158, 11, 0.15)',
+                  color:
+                    (blueNoteHealth?.health === 'healthy' || blueNoteHealth?.status === 'Healthy')
+                      ? '#10B981'
+                      : (blueNoteHealth?.health === 'blocked' || blueNoteHealth?.status === 'Blocked')
+                      ? '#EF4444'
+                      : '#F59E0B',
+                  border: `1px solid ${
+                    (blueNoteHealth?.health === 'healthy' || blueNoteHealth?.status === 'Healthy')
+                      ? 'rgba(16, 185, 129, 0.3)'
+                      : (blueNoteHealth?.health === 'blocked' || blueNoteHealth?.status === 'Blocked')
+                      ? 'rgba(239, 68, 68, 0.3)'
+                      : 'rgba(245, 158, 11, 0.3)'
+                  }`
+                }}
+              >
+                {((blueNoteHealth?.health || blueNoteHealth?.status) || 'CALCULATING').toUpperCase().replace('_', ' ')}
+              </span>
+            </div>
+
+            <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '10px', height: '34px', overflow: 'hidden' }}>
+              Noir jazz club detective mystery. Branching narrative dialogue and acoustic soundscapes.
+            </p>
+
+            <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginBottom: '8px' }}>
+              {blueNoteHealth?.reasons?.length > 0 ? (
+                <div style={{ color: 'var(--accent-orange)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <AlertTriangle size={12} />
+                  <span>{blueNoteHealth.reasons[0]}</span>
+                </div>
+              ) : (
+                <div style={{ color: '#10B981', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <CheckCircle2 size={12} />
+                  <span>Production milestones and lore canon healthy.</span>
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text-muted)', borderTop: '1px solid var(--border-subtle)', paddingTop: '8px' }}>
+              <span>Critical Bugs: <strong style={{ color: (blueNoteHealth?.metrics?.criticalBugs || 0) > 0 ? '#EF4444' : 'var(--text-white)' }}>{blueNoteHealth?.metrics?.criticalBugs || 0}</strong></span>
+              <span>Blocked Tasks: <strong style={{ color: (blueNoteHealth?.metrics?.blockedTasks || 0) > 0 ? '#EF4444' : 'var(--text-white)' }}>{blueNoteHealth?.metrics?.blockedTasks || 0}</strong></span>
+              <span>Overdue: <strong style={{ color: 'var(--text-white)' }}>{blueNoteHealth?.metrics?.overdueTasks || 0}</strong></span>
+            </div>
+          </div>
+        </div>
+
+        {/* Quick Hub Action Badges */}
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', borderTop: '1px solid var(--border-subtle)', paddingTop: '12px' }}>
+          <button className="btn btn-secondary btn-sm" onClick={() => onNavigate('bugs')} style={{ fontSize: '11.5px' }}>
+            <Bug size={13} color="#EF4444" /> QA Bug Tracker ({activeBugs.length} open)
+          </button>
+          <button className="btn btn-secondary btn-sm" onClick={() => onNavigate('builds-releases')} style={{ fontSize: '11.5px' }}>
+            <Rocket size={13} color="#10B981" /> Builds & Releases
+          </button>
+          <button className="btn btn-secondary btn-sm" onClick={() => onNavigate('assets')} style={{ fontSize: '11.5px' }}>
+            <Layers size={13} color="var(--accent-orange)" /> Private Asset Vault
+          </button>
+          <button className="btn btn-secondary btn-sm" onClick={() => onNavigate('story-bible')} style={{ fontSize: '11.5px' }}>
+            <BookOpen size={13} color="#F59E0B" /> Story Bible
+          </button>
+          <button className="btn btn-secondary btn-sm" onClick={() => onNavigate('ai-assistant')} style={{ fontSize: '11.5px' }}>
+            <Sparkles size={13} color="#A855F7" /> Cindermarch AI Assistant
+          </button>
         </div>
       </div>
 

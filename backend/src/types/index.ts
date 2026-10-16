@@ -491,3 +491,324 @@ export interface WorkspaceSuspension {
   reinstated_by?: string | null;
   reinstatement_reason?: string | null;
 }
+
+export interface Project {
+  id: string;
+  workspace_id?: string | null;
+  name: string;
+  description: string;
+  repository_id: string;
+  status?: 'active' | 'archived' | 'paused';
+  owner_id?: string | null;
+  unity_version?: string | null;
+  target_platforms_json?: string | null;
+  created_at: string;
+}
+
+export type MilestoneStatus = 'Planned' | 'In Progress' | 'Completed' | 'Delayed' | 'Blocked';
+
+export interface Milestone {
+  id: string;
+  project_id: string;
+  title: string;
+  description?: string | null;
+  target_date: string;
+  owner_id?: string | null;
+  status: MilestoneStatus;
+  dependencies_json?: string | null;
+  completion_requirements?: string | null;
+  completed_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type SprintStatus = 'Planned' | 'Active' | 'Completed' | 'Closed';
+
+export interface Sprint {
+  id: string;
+  project_id: string;
+  team_id?: string | null;
+  name: string;
+  goal: string;
+  start_date: string;
+  end_date: string;
+  capacity_hours?: number;
+  status: SprintStatus;
+  retrospective_notes?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type BugSeverity = 'Critical' | 'Major' | 'Minor' | 'Trivial';
+export type BugStatus =
+  | 'Reported'
+  | 'Confirmed'
+  | 'In Progress'
+  | 'Fixed'
+  | 'Verified'
+  | 'Rejected'
+  | 'Duplicate'
+  | 'Blocked'
+  | 'Reopened';
+
+export interface Bug {
+  id: string;
+  project_id: string;
+  title: string;
+  description: string;
+  severity: BugSeverity;
+  priority: Priority;
+  reporter_id: string;
+  assigned_to?: string | null;
+  assigned_team_id?: string | null;
+  affected_build?: string | null;
+  affected_platform?: string | null;
+  steps_to_reproduce?: string | null;
+  expected_behavior?: string | null;
+  actual_behavior?: string | null;
+  related_task_id?: string | null;
+  changeset_ref?: string | null;
+  status: BugStatus;
+  resolution?: string | null;
+  verified_by?: string | null;
+  verified_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type AssetCategory =
+  | '3d_model'
+  | 'material'
+  | 'animation'
+  | 'concept_art'
+  | 'audio'
+  | 'music'
+  | 'sfx'
+  | 'narrative_doc'
+  | 'marketing_graphic'
+  | 'video'
+  | 'tech_doc';
+
+export type AssetStatus =
+  | 'Proposed'
+  | 'In Progress'
+  | 'Ready for Review'
+  | 'Changes Requested'
+  | 'Approved'
+  | 'Integrated'
+  | 'Archived';
+
+export interface Asset {
+  id: string;
+  project_id: string;
+  team_id?: string | null;
+  name: string;
+  category: AssetCategory;
+  description?: string | null;
+  owner_id: string;
+  version: string;
+  status: AssetStatus;
+  pipeline_stage?: string | null;
+  tags_json?: string | null;
+  preview_url?: string | null;
+  file_path?: string | null;
+  file_size?: number;
+  technical_meta_json?: string | null;
+  linked_task_id?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type StoryCategory =
+  | 'character'
+  | 'location'
+  | 'faction'
+  | 'lore'
+  | 'timeline'
+  | 'dialogue'
+  | 'quest_beat';
+
+export type StoryStatus = 'Draft' | 'In Review' | 'Canon Approved' | 'Archived';
+
+export interface StoryBibleEntry {
+  id: string;
+  project_id: string;
+  category: StoryCategory;
+  title: string;
+  summary: string;
+  body: string;
+  tags_json?: string | null;
+  status: StoryStatus;
+  author_id: string;
+  approved_by?: string | null;
+  related_entries_json?: string | null;
+  version?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export type DocumentCategory =
+  | 'tech_doc'
+  | 'architecture'
+  | 'design'
+  | 'art_guide'
+  | 'audio_guide'
+  | 'meeting_notes'
+  | 'onboarding'
+  | 'release_process'
+  | 'retrospective';
+
+export interface Document {
+  id: string;
+  workspace_id: string;
+  project_id?: string | null;
+  team_id?: string | null;
+  category: DocumentCategory;
+  title: string;
+  content: string;
+  author_id: string;
+  last_edited_by?: string | null;
+  tags_json?: string | null;
+  is_pinned?: number;
+  version?: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export type DecisionStatus = 'Proposed' | 'Accepted' | 'Superseded' | 'Deprecated';
+
+export interface Decision {
+  id: string;
+  workspace_id: string;
+  project_id?: string | null;
+  title: string;
+  scope: string;
+  context: string;
+  options_considered: string;
+  chosen_approach: string;
+  reasoning: string;
+  author_id: string;
+  status: DecisionStatus;
+  approver_id?: string | null;
+  superseded_by_id?: string | null;
+  related_tasks_json?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Standup {
+  id: string;
+  workspace_id: string;
+  team_id: string;
+  user_id: string;
+  completed_yesterday: string;
+  planned_today: string;
+  blockers?: string | null;
+  help_needed?: string | null;
+  date: string;
+  created_at: string;
+}
+
+export interface Meeting {
+  id: string;
+  workspace_id: string;
+  project_id?: string | null;
+  team_id?: string | null;
+  title: string;
+  date: string;
+  participants_json: string;
+  agenda: string;
+  notes: string;
+  action_items_json?: string | null;
+  decisions?: string | null;
+  created_by: string;
+  created_at: string;
+}
+
+export interface Retrospective {
+  id: string;
+  workspace_id: string;
+  project_id?: string | null;
+  team_id?: string | null;
+  title: string;
+  period: string;
+  what_went_well: string;
+  what_caused_problems: string;
+  what_should_change: string;
+  action_items_json?: string | null;
+  facilitator_id: string;
+  created_at: string;
+}
+
+export type BuildTarget = 'Windows' | 'Linux' | 'macOS' | 'PS5' | 'Xbox' | 'Switch';
+export type BuildStatus = 'Queued' | 'Running' | 'Succeeded' | 'Failed' | 'Canceled';
+
+export interface Build {
+  id: string;
+  project_id: string;
+  build_number: string;
+  version: string;
+  branch: string;
+  changeset_id?: string | null;
+  build_target: BuildTarget;
+  unity_version: string;
+  status: BuildStatus;
+  test_report_id?: string | null;
+  artifacts_json?: string | null;
+  known_issues?: string | null;
+  release_approved?: number;
+  release_approved_by?: string | null;
+  changelog?: string | null;
+  release_owner_id?: string | null;
+  created_at: string;
+  completed_at?: string | null;
+}
+
+export type ReleaseStatus = 'Draft' | 'Readiness Review' | 'Approved' | 'Released' | 'Canceled';
+
+export interface Release {
+  id: string;
+  project_id: string;
+  name: string;
+  version: string;
+  build_id?: string | null;
+  status: ReleaseStatus;
+  checklist_json?: string | null;
+  target_date?: string | null;
+  released_at?: string | null;
+  notes?: string | null;
+  created_by: string;
+  created_at: string;
+}
+
+export type MarketingChannel = 'Twitter/X' | 'Discord' | 'YouTube' | 'Steam' | 'Press' | 'Reddit' | 'TikTok';
+export type MarketingStatus = 'Idea' | 'Draft' | 'Review' | 'Approved' | 'Scheduled' | 'Published';
+
+export interface MarketingItem {
+  id: string;
+  project_id: string;
+  campaign: string;
+  channel: MarketingChannel;
+  title: string;
+  copy: string;
+  creative_asset_ids_json?: string | null;
+  scheduled_date?: string | null;
+  status: MarketingStatus;
+  owner_id: string;
+  external_url?: string | null;
+  deliverables?: string | null;
+  created_at: string;
+}
+
+export interface AIConversation {
+  id: string;
+  user_id: string;
+  workspace_id: string;
+  project_id?: string | null;
+  prompt: string;
+  response: string;
+  citations_json?: string | null;
+  drafted_actions_json?: string | null;
+  model_used: string;
+  created_at: string;
+}
