@@ -8,10 +8,23 @@ import {
   ExternalLink,
   ShieldAlert,
   ArrowRight,
-  AlertTriangle
+  AlertTriangle,
+  Plus,
+  Users,
+  Layers,
+  Sparkles,
+  BookOpen,
+  Code,
+  Megaphone,
+  Cpu,
+  Volume2,
+  Activity,
+  CheckCircle2,
+  RefreshCw
 } from 'lucide-react';
 import { StatusBadge } from '../components/StatusBadge.js';
 import { PriorityBadge } from '../components/PriorityBadge.js';
+import { useAuth } from '../context/AuthContext.js';
 import { apiRequest } from '../api/client.js';
 
 interface OverviewPageProps {
@@ -19,7 +32,20 @@ interface OverviewPageProps {
   onOpenNewTaskModal: () => void;
 }
 
+// Icon helper for six teams
+const getTeamIcon = (slugOrName: string) => {
+  const s = slugOrName.toLowerCase();
+  if (s.includes('story')) return <BookOpen size={16} color="#FF9800" />;
+  if (s.includes('coding')) return <Code size={16} color="#00E5FF" />;
+  if (s.includes('marketing')) return <Megaphone size={16} color="#E91E63" />;
+  if (s.includes('engine')) return <Cpu size={16} color="#FF5722" />;
+  if (s.includes('artist') || s.includes('3d')) return <Layers size={16} color="#9C27B0" />;
+  if (s.includes('sound') || s.includes('audio')) return <Volume2 size={16} color="#4CAF50" />;
+  return <Users size={16} color="var(--accent-orange)" />;
+};
+
 export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate, onOpenNewTaskModal }) => {
+  const { user } = useAuth();
   const [data, setData] = useState<any>(null);
   const [myStrikes, setMyStrikes] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -54,11 +80,37 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate, onOpenNe
     loadData();
   }, []);
 
+  const getRelativeDeadline = (deadlineStr: string) => {
+    const now = new Date().getTime();
+    const due = new Date(deadlineStr).getTime();
+    const diffHours = Math.round((due - now) / (1000 * 60 * 60));
+
+    if (diffHours < 0) {
+      const overdueDays = Math.abs(Math.floor(diffHours / 24));
+      return {
+        label: overdueDays === 0 ? `${Math.abs(diffHours)}h overdue` : `${overdueDays}d overdue`,
+        severity: 'critical' as const
+      };
+    }
+    if (diffHours <= 24) {
+      return {
+        label: diffHours === 0 ? 'Due now' : `Due in ${diffHours}h`,
+        severity: 'warning' as const
+      };
+    }
+    const days = Math.round(diffHours / 24);
+    return {
+      label: `Due in ${days}d`,
+      severity: 'normal' as const
+    };
+  };
+
   if (isLoading) {
     return (
       <div className="page-wrapper">
-        <div style={{ color: 'var(--text-secondary)', padding: '40px 0' }}>
-          Loading Terminal 6 hub statistics...
+        <div style={{ color: 'var(--text-secondary)', padding: '60px 0', textAlign: 'center' }}>
+          <div style={{ display: 'inline-block', width: '32px', height: '32px', border: '2px solid var(--accent-orange)', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite', marginBottom: '16px' }} />
+          <div>Synchronizing Terminal 6 Studio Command Center...</div>
         </div>
       </div>
     );
@@ -71,6 +123,9 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate, onOpenNe
           <AlertCircle size={18} />
           <span>Error loading dashboard metrics: {error}</span>
         </div>
+        <button className="btn btn-secondary" onClick={loadData}>
+          <RefreshCw size={14} /> Retry
+        </button>
       </div>
     );
   }
@@ -78,19 +133,69 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate, onOpenNe
   const { metrics, workload, upcomingDeadlines, recentReviews, recentReports, recentActivity, integrations } = data;
   const teamWorkloads = data.teamWorkloads || [];
 
+  const timezone = data?.policy?.timezone || 'Africa/Cairo';
+  const todayFormatted = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    weekday: 'long',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric'
+  }).format(new Date());
+
   return (
     <div className="page-wrapper">
-      <div className="page-header">
-        <div className="page-title-group">
-          <h1>Terminal 6 // Development Overview</h1>
-          <p>Real-time engineering hub status, six studio teams, verification gates, and developer workload.</p>
+      {/* Personalized Studio Command Header */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '16px',
+          padding: '20px 24px',
+          backgroundColor: 'var(--bg-surface)',
+          border: '1px solid var(--border-subtle)',
+          borderRadius: 'var(--radius-md)',
+          marginBottom: '20px',
+          boxShadow: 'var(--shadow-sm)'
+        }}
+      >
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+            <span
+              style={{
+                fontSize: '11px',
+                fontWeight: 800,
+                letterSpacing: '0.08em',
+                color: 'var(--accent-orange)',
+                textTransform: 'uppercase'
+              }}
+            >
+              COMMAND CENTER // TERMINAL 6
+            </span>
+            <span style={{ color: 'var(--text-muted)' }}>•</span>
+            <span className="mono" style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+              {todayFormatted} ({timezone})
+            </span>
+          </div>
+
+          <h1 style={{ fontSize: '22px', fontWeight: 800, color: 'var(--text-white)', letterSpacing: '-0.02em' }}>
+            Welcome back, {user?.displayName || 'Developer'}
+          </h1>
+          <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+            Role: <strong style={{ color: 'var(--text-white)' }}>{user?.roles?.join(' • ') || 'Developer'}</strong> • Six Dedicated Studio Teams Active
+          </div>
         </div>
-        <div style={{ display: 'flex', gap: '8px' }}>
-          <button className="btn btn-secondary" onClick={loadData}>
-            Refresh Metrics
+
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          <button className="btn btn-secondary btn-sm" onClick={loadData} title="Refresh Live Metrics">
+            <RefreshCw size={13} /> Refresh
           </button>
-          <button className="btn btn-primary" onClick={onOpenNewTaskModal}>
-            + New Task
+          <button className="btn btn-secondary btn-sm" onClick={() => onNavigate('reviews')}>
+            <FileCheck2 size={13} /> Review Queue ({metrics.awaitingReview})
+          </button>
+          <button className="btn btn-primary btn-sm" onClick={onOpenNewTaskModal}>
+            <Plus size={14} /> New Task
           </button>
         </div>
       </div>
@@ -153,7 +258,7 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate, onOpenNe
                     color: myStrikes.activeStrikes >= 4 ? '#EF4444' : '#F59E0B'
                   }}
                 >
-                  {myStrikes.activeStrikes} OF {myStrikes.maxStrikes} STRIKES ({myStrikes.remainingStrikes} REMAINING)
+                  {myStrikes.activeStrikes} OF {myStrikes.maxThreshold || 5} STRIKES ({myStrikes.remainingStrikes} REMAINING)
                 </span>
               </div>
               <div style={{ fontSize: '13px', color: 'var(--text-white)' }}>
@@ -184,12 +289,13 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate, onOpenNe
           gap: '12px',
           flexWrap: 'wrap',
           marginBottom: '24px',
-          padding: '12px 16px',
+          padding: '12px 18px',
           backgroundColor: 'var(--bg-surface)',
           borderRadius: 'var(--radius-md)',
           border: '1px solid var(--border-subtle)',
           alignItems: 'center',
-          justifyContent: 'space-between'
+          justifyContent: 'space-between',
+          boxShadow: 'var(--shadow-sm)'
         }}
       >
         <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', alignItems: 'center' }}>
@@ -202,7 +308,7 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate, onOpenNe
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12.5px' }}>
             <span style={{ color: 'var(--text-secondary)' }}>Unity Test Ingestion:</span>
-            <span className="badge badge-verified-complete">API ENDPOINT READY</span>
+            <span className="badge badge-verified-complete">API READY</span>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12.5px' }}>
@@ -232,6 +338,7 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate, onOpenNe
               }`}
               style={{ cursor: 'pointer' }}
               onClick={() => onNavigate('strikes')}
+              title="Click to view Studio Disciplinary Governance"
             >
               5-STRIKES AUTO-SUSPEND ({(data.disciplinary?.activeStrikesCount || 0)} ACTIVE)
             </span>
@@ -241,13 +348,13 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate, onOpenNe
         <button
           className="btn btn-secondary btn-sm"
           onClick={() => onNavigate('integrations')}
-          style={{ fontSize: '11px' }}
+          style={{ fontSize: '11.5px' }}
         >
           View Integrations <ExternalLink size={12} />
         </button>
       </div>
 
-      {/* Metrics Row */}
+      {/* Six Metric Cards */}
       <div className="metrics-grid">
         <div
           className="metric-card accent-orange"
@@ -256,7 +363,7 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate, onOpenNe
         >
           <div className="metric-label">Open Tasks</div>
           <div className="metric-value">{metrics.openTasks}</div>
-          <div className="metric-sub">{metrics.totalTasks} total tasks in database</div>
+          <div className="metric-sub">{metrics.totalTasks} total tasks in studio</div>
         </div>
 
         <div
@@ -298,73 +405,225 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate, onOpenNe
           <div className="metric-value">{metrics.blocked}</div>
           <div className="metric-sub">{metrics.failedTests} failed test report(s)</div>
         </div>
+
+        <div
+          className="metric-card"
+          style={{
+            cursor: 'pointer',
+            borderLeft: myStrikes?.activeStrikes > 0 ? '4px solid #EF4444' : '4px solid var(--border-strong)'
+          }}
+          onClick={() => onNavigate('strikes')}
+        >
+          <div className="metric-label">My Disciplinary Strikes</div>
+          <div
+            className="metric-value"
+            style={{ color: myStrikes?.activeStrikes > 0 ? '#EF4444' : 'var(--text-white)' }}
+          >
+            {myStrikes?.activeStrikes || 0} / {myStrikes?.maxThreshold || 5}
+          </div>
+          <div className="metric-sub">
+            {myStrikes?.activeStrikes === 0
+              ? 'Clean disciplinary record'
+              : `${myStrikes?.remainingStrikes || 0} strikes until suspension`}
+          </div>
+        </div>
       </div>
 
-      {/* Six Studio Teams Workload & Status Cards */}
+      {/* Six Studio Teams Workload & Status */}
       <div className="card" style={{ marginBottom: '24px' }}>
         <div className="card-header">
           <div className="card-title">
-            <CheckSquare size={16} color="var(--accent-orange)" />
+            <Users size={17} color="var(--accent-orange)" />
             <span>Studio Departments // Six Dedicated Teams</span>
           </div>
           <button className="btn btn-secondary btn-sm" onClick={() => onNavigate('team')}>
-            Team Directory & Dashboards
+            Team Directory & Dashboards <ArrowRight size={13} />
           </button>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '14px' }}>
-          {teamWorkloads.map((team: any) => (
-            <div
-              key={team.id}
-              style={{
-                padding: '14px',
-                backgroundColor: 'var(--bg-elevated)',
-                border: '1px solid var(--border-subtle)',
-                borderRadius: 'var(--radius-sm)',
-                cursor: 'pointer',
-                transition: 'border-color 0.15s ease'
-              }}
-              onClick={() => onNavigate('tasks', { filterTeam: team.id })}
-              onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.borderColor = 'var(--accent-orange)')}
-              onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.borderColor = 'var(--border-subtle)')}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-                <strong style={{ fontSize: '14px', color: 'var(--text-white)' }}>{team.name}</strong>
-                <span className="badge badge-backlog" style={{ fontSize: '10.5px' }}>
-                  {team.memberCount} members
-                </span>
-              </div>
-              <div style={{ fontSize: '11.5px', color: 'var(--text-secondary)', marginBottom: '10px', minHeight: '30px', lineHeight: '1.4' }}>
-                {team.description}
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11.5px', color: 'var(--text-muted)' }}>
-                <div style={{ display: 'flex', gap: '10px' }}>
-                  <span>Active: <strong style={{ color: 'var(--accent-orange)' }}>{team.activeTasks}</strong></span>
-                  <span>Overdue: <strong style={{ color: team.overdueTasks > 0 ? 'var(--status-blocked)' : 'var(--text-secondary)' }}>{team.overdueTasks}</strong></span>
-                  <span>Done: <strong style={{ color: 'var(--status-complete)' }}>{team.completedTasks}</strong></span>
+          {teamWorkloads.map((team: any) => {
+            const completed = team.complete || 0;
+            const total = team.total_tasks || 0;
+            const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+            return (
+              <div
+                key={team.id}
+                style={{
+                  padding: '16px',
+                  backgroundColor: 'var(--bg-elevated)',
+                  border: '1px solid var(--border-subtle)',
+                  borderRadius: 'var(--radius-sm)',
+                  cursor: 'pointer',
+                  transition: 'all var(--transition-fast)'
+                }}
+                onClick={() => onNavigate('tasks', { filterTeam: team.id })}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLElement).style.borderColor = 'var(--accent-orange)';
+                  (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)';
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLElement).style.borderColor = 'var(--border-subtle)';
+                  (e.currentTarget as HTMLElement).style.transform = 'translateY(0)';
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    {getTeamIcon(team.slug || team.name)}
+                    <strong style={{ fontSize: '14px', color: 'var(--text-white)' }}>{team.name}</strong>
+                  </div>
+                  <span className="badge badge-backlog" style={{ fontSize: '10.5px' }}>
+                    {team.total_tasks || 0} Tasks
+                  </span>
                 </div>
-                <ArrowRight size={12} color="var(--text-muted)" />
+
+                <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '10px', height: '36px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {team.description}
+                </div>
+
+                {/* Progress Bar */}
+                <div style={{ width: '100%', height: '5px', backgroundColor: 'var(--bg-surface)', borderRadius: '3px', overflow: 'hidden', marginBottom: '8px' }}>
+                  <div style={{ width: `${pct}%`, height: '100%', backgroundColor: 'var(--status-complete)', borderRadius: '3px', transition: 'width 0.4s ease' }} />
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text-muted)' }}>
+                  <span>Progress: <strong style={{ color: 'var(--text-white)' }}>{pct}%</strong></span>
+                  <span>In Progress: <strong style={{ color: 'var(--status-progress)' }}>{team.in_progress || 0}</strong></span>
+                  <span>Review: <strong style={{ color: 'var(--status-review)' }}>{team.review || 0}</strong></span>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
       {/* Main Grid: 2 Columns */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '24px' }}>
-        {/* Left Column */}
+        {/* Left Column: Workload Breakdown & Deadlines */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          {/* Workload Breakdown */}
+          {/* Upcoming Deadlines Panel */}
+          <div className="card">
+            <div className="card-header">
+              <div className="card-title">
+                <Clock size={16} color="var(--accent-orange)" />
+                <span>Upcoming Milestones & Deadlines</span>
+              </div>
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={() => onNavigate('tasks', { sort: 'deadline' })}
+                style={{ fontSize: '11.5px' }}
+              >
+                All Milestones <ArrowRight size={12} />
+              </button>
+            </div>
+
+            {upcomingDeadlines.length === 0 ? (
+              <div className="empty-state" style={{ padding: '28px 0' }}>
+                <Clock size={28} />
+                <h3>No Deadlines Configured</h3>
+                <p>No open tasks have active milestone deadlines scheduled.</p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {upcomingDeadlines.map((t: any) => {
+                  const effectiveDate = t.extended_deadline || t.deadline;
+                  const rel = effectiveDate ? getRelativeDeadline(effectiveDate) : null;
+
+                  return (
+                    <div
+                      key={t.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '12px 14px',
+                        backgroundColor: 'var(--bg-elevated)',
+                        border: '1px solid var(--border-subtle)',
+                        borderRadius: 'var(--radius-sm)',
+                        cursor: 'pointer',
+                        transition: 'all var(--transition-fast)'
+                      }}
+                      onClick={() => onNavigate('tasks', { taskId: t.id })}
+                      onMouseEnter={(e) => {
+                        (e.currentTarget as HTMLElement).style.borderColor = 'var(--accent-orange)';
+                        (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--bg-hover)';
+                      }}
+                      onMouseLeave={(e) => {
+                        (e.currentTarget as HTMLElement).style.borderColor = 'var(--border-subtle)';
+                        (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--bg-elevated)';
+                      }}
+                    >
+                      <div style={{ flex: 1, minWidth: 0, paddingRight: '12px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '3px', flexWrap: 'wrap' }}>
+                          <span className="mono" style={{ fontSize: '12px', color: 'var(--accent-orange)', fontWeight: 700 }}>
+                            {t.id}
+                          </span>
+                          <PriorityBadge priority={t.priority} />
+                          <StatusBadge status={t.status} />
+
+                          {t.is_deadline_exempt === 1 && (
+                            <span className="badge badge-verified-complete" style={{ fontSize: '10px' }}>
+                              EXEMPT
+                            </span>
+                          )}
+                          {t.extended_deadline && (
+                            <span className="badge badge-changes-requested" style={{ fontSize: '10px' }}>
+                              EXTENDED
+                            </span>
+                          )}
+                          {t.reassignment_required === 1 && (
+                            <span className="badge badge-blocked" style={{ fontSize: '10px' }}>
+                              REASSIGNMENT REQUIRED
+                            </span>
+                          )}
+                        </div>
+
+                        <div style={{ fontSize: '13px', color: 'var(--text-white)', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {t.title}
+                        </div>
+                        <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                          Owner: {t.owner_name || 'Unassigned'}
+                        </div>
+                      </div>
+
+                      <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                        {rel && (
+                          <div
+                            style={{
+                              fontSize: '11.5px',
+                              fontWeight: 700,
+                              color:
+                                rel.severity === 'critical'
+                                  ? '#EF4444'
+                                  : rel.severity === 'warning'
+                                  ? '#F59E0B'
+                                  : 'var(--text-secondary)',
+                              marginBottom: '2px'
+                            }}
+                          >
+                            {rel.label}
+                          </div>
+                        )}
+                        <div className="mono" style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                          {effectiveDate ? new Date(effectiveDate).toLocaleDateString() : '—'}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Developer Workload */}
           <div className="card">
             <div className="card-header">
               <div className="card-title">
                 <CheckSquare size={16} color="var(--accent-orange)" />
-                <span>Developer Workload & Tasks</span>
+                <span>Developer Workload & Distribution</span>
               </div>
-              <button
-                className="btn btn-secondary btn-sm"
-                onClick={() => onNavigate('team')}
-              >
+              <button className="btn btn-secondary btn-sm" onClick={() => onNavigate('team')}>
                 Team Directory
               </button>
             </div>
@@ -374,7 +633,7 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate, onOpenNe
                 <p>No active developers assigned to tasks.</p>
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 {workload.map((w: any) => (
                   <div
                     key={w.id}
@@ -385,14 +644,14 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate, onOpenNe
                       padding: '12px 14px'
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
                       <div style={{ fontWeight: 600, fontSize: '13.5px', color: 'var(--text-white)' }}>
-                        {w.display_name} <span style={{ color: 'var(--text-muted)', fontSize: '11px', fontFamily: 'var(--font-mono)' }}>({w.username})</span>
+                        {w.display_name} <span className="mono" style={{ color: 'var(--text-muted)', fontSize: '11px' }}>({w.username})</span>
                       </div>
-                      <span className="badge badge-backlog">{w.assigned_tasks} Tasks Assigned</span>
+                      <span className="badge badge-backlog">{w.assigned_tasks} Assigned</span>
                     </div>
 
-                    <div style={{ display: 'flex', gap: '12px', fontSize: '12px', color: 'var(--text-secondary)' }}>
+                    <div style={{ display: 'flex', gap: '14px', fontSize: '12px', color: 'var(--text-secondary)' }}>
                       <span>In Progress: <strong style={{ color: 'var(--status-progress)' }}>{w.in_progress_tasks || 0}</strong></span>
                       <span>Review: <strong style={{ color: 'var(--status-review)' }}>{w.review_tasks || 0}</strong></span>
                       <span>Complete: <strong style={{ color: 'var(--status-complete)' }}>{w.completed_tasks || 0}</strong></span>
@@ -405,79 +664,9 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate, onOpenNe
               </div>
             )}
           </div>
-
-          {/* Upcoming Deadlines */}
-          <div className="card">
-            <div className="card-header">
-              <div className="card-title">
-                <Clock size={16} color="var(--accent-orange)" />
-                <span>Upcoming Milestones & Deadlines</span>
-              </div>
-            </div>
-
-            {upcomingDeadlines.length === 0 ? (
-              <div className="empty-state" style={{ padding: '24px 0' }}>
-                <p>No open tasks have configured deadlines.</p>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {upcomingDeadlines.map((t: any) => (
-                  <div
-                    key={t.id}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '10px 12px',
-                      backgroundColor: 'var(--bg-elevated)',
-                      border: '1px solid var(--border-subtle)',
-                      borderRadius: 'var(--radius-sm)',
-                      cursor: 'pointer'
-                    }}
-                    onClick={() => onNavigate('tasks', { taskId: t.id })}
-                  >
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px', flexWrap: 'wrap' }}>
-                        <span className="mono" style={{ fontSize: '12px', color: 'var(--accent-orange)', fontWeight: 600 }}>
-                          {t.id}
-                        </span>
-                        <PriorityBadge priority={t.priority} />
-                        <StatusBadge status={t.status} />
-                        {t.is_deadline_exempt === 1 && (
-                          <span className="badge badge-verified-complete" style={{ fontSize: '10px' }}>
-                            POLICY EXEMPT
-                          </span>
-                        )}
-                        {t.extended_deadline && (
-                          <span className="badge badge-changes-requested" style={{ fontSize: '10px' }}>
-                            EXTENDED
-                          </span>
-                        )}
-                        {t.reassignment_required === 1 && (
-                          <span className="badge badge-blocked" style={{ fontSize: '10px' }}>
-                            REASSIGNMENT
-                          </span>
-                        )}
-                      </div>
-                      <div style={{ fontSize: '13px', color: 'var(--text-white)', fontWeight: 500 }}>
-                        {t.title}
-                      </div>
-                    </div>
-                    <div style={{ textAlign: 'right', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)' }}>
-                      {t.extended_deadline
-                        ? `Ext: ${new Date(t.extended_deadline).toLocaleDateString()}`
-                        : t.deadline
-                        ? new Date(t.deadline).toLocaleDateString()
-                        : 'No deadline'}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
         </div>
 
-        {/* Right Column */}
+        {/* Right Column: Peer Reviews & Recent Activity */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
           {/* Recent Reviews */}
           <div className="card">
@@ -486,32 +675,36 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate, onOpenNe
                 <FileCheck2 size={16} color="var(--accent-orange)" />
                 <span>Recent Peer Reviews</span>
               </div>
-              <button
-                className="btn btn-secondary btn-sm"
-                onClick={() => onNavigate('reviews')}
-              >
-                Review Queue
+              <button className="btn btn-secondary btn-sm" onClick={() => onNavigate('reviews')}>
+                Review Queue <ArrowRight size={12} />
               </button>
             </div>
 
             {recentReviews.length === 0 ? (
               <div className="empty-state" style={{ padding: '24px 0' }}>
-                <p>No peer reviews recorded yet.</p>
+                <FileCheck2 size={28} />
+                <h3>No Peer Reviews Recorded</h3>
+                <p>Task completion requires independent reviewer verification.</p>
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {recentReviews.map((r: any) => (
+                {recentReviews.slice(0, 5).map((r: any) => (
                   <div
                     key={r.id}
                     style={{
-                      padding: '10px 12px',
+                      padding: '12px',
                       backgroundColor: 'var(--bg-elevated)',
                       border: '1px solid var(--border-subtle)',
-                      borderRadius: 'var(--radius-sm)'
+                      borderRadius: 'var(--radius-sm)',
+                      cursor: 'pointer',
+                      transition: 'border-color var(--transition-fast)'
                     }}
+                    onClick={() => onNavigate('tasks', { taskId: r.task_id })}
+                    onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.borderColor = 'var(--accent-orange)')}
+                    onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.borderColor = 'var(--border-subtle)')}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
-                      <span className="mono" style={{ fontSize: '12px', color: 'var(--accent-orange)', fontWeight: 600 }}>
+                      <span className="mono" style={{ fontSize: '11.5px', color: 'var(--accent-orange)', fontWeight: 600 }}>
                         {r.task_id}
                       </span>
                       <span
@@ -520,17 +713,19 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate, onOpenNe
                             ? 'badge-verified-complete'
                             : r.decision === 'Changes Requested'
                             ? 'badge-changes-requested'
-                            : 'badge-backlog'
+                            : 'badge-ready-for-review'
                         }`}
                       >
                         {r.decision}
                       </span>
                     </div>
-                    <div style={{ fontSize: '13px', color: 'var(--text-white)', marginBottom: '4px' }}>
-                      {r.task_title}
+
+                    <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-white)', marginBottom: '3px' }}>
+                      {r.task_title || 'Task Review'}
                     </div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
-                      Developer: <strong>{r.developer_name}</strong> • Reviewer: <strong>{r.reviewer_name}</strong>
+
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                      Reviewer: {r.reviewer_name || 'Designated Reviewer'} • {new Date(r.created_at).toLocaleDateString()}
                     </div>
                   </div>
                 ))}
@@ -538,123 +733,77 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate, onOpenNe
             )}
           </div>
 
-          {/* Recent Test Reports */}
+          {/* Real Recent Activity Stream */}
           <div className="card">
             <div className="card-header">
               <div className="card-title">
-                <FileText size={16} color="var(--accent-orange)" />
-                <span>Recent Unity Test / Build Reports</span>
+                <Activity size={16} color="var(--accent-orange)" />
+                <span>Studio Audit Stream</span>
               </div>
-              <button
-                className="btn btn-secondary btn-sm"
-                onClick={() => onNavigate('test-reports')}
-              >
-                All Reports
+              <button className="btn btn-secondary btn-sm" onClick={() => onNavigate('activity')}>
+                Full Audit Trail
               </button>
             </div>
 
-            {recentReports.length === 0 ? (
+            {recentActivity.length === 0 ? (
               <div className="empty-state" style={{ padding: '24px 0' }}>
-                <p>No test reports recorded yet.</p>
+                <p>No activity recorded yet.</p>
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {recentReports.map((rpt: any) => (
+                {recentActivity.slice(0, 6).map((a: any) => (
                   <div
-                    key={rpt.id}
+                    key={a.id}
                     style={{
                       display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
+                      alignItems: 'flex-start',
+                      gap: '10px',
                       padding: '10px 12px',
                       backgroundColor: 'var(--bg-elevated)',
                       border: '1px solid var(--border-subtle)',
-                      borderRadius: 'var(--radius-sm)'
+                      borderRadius: 'var(--radius-sm)',
+                      fontSize: '12.5px'
                     }}
                   >
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
-                        <span className="mono" style={{ fontSize: '12px', color: 'var(--text-white)', fontWeight: 600 }}>
-                          {rpt.test_suite}
-                        </span>
-                        <span className="mono" style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                          rev: {rpt.revision}
-                        </span>
-                        {rpt.source === 'manual' && <span className="demo-tag">MANUAL</span>}
+                    <div
+                      style={{
+                        width: '24px',
+                        height: '24px',
+                        borderRadius: '50%',
+                        backgroundColor: 'var(--bg-surface)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'var(--accent-orange)',
+                        fontSize: '10.5px',
+                        fontWeight: 700,
+                        flexShrink: 0,
+                        marginTop: '1px'
+                      }}
+                    >
+                      {a.actor_name ? a.actor_name.slice(0, 1).toUpperCase() : 'S'}
+                    </div>
+
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ color: 'var(--text-white)', lineHeight: '1.4' }}>
+                        <strong>{a.actor_name || 'System'}</strong>: {a.action.replace(/_/g, ' ')}{' '}
+                        {a.task_title && (
+                          <span
+                            onClick={() => onNavigate('tasks', { taskId: a.related_task_id })}
+                            style={{ color: 'var(--accent-orange)', cursor: 'pointer', fontWeight: 600 }}
+                          >
+                            on {a.related_task_id}
+                          </span>
+                        )}
                       </div>
-                      <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
-                        {rpt.passed_count} passed • {rpt.failed_count} failed • Unity {rpt.unity_version}
+                      <div className="mono" style={{ fontSize: '10.5px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                        {new Date(a.created_at).toLocaleString()}
                       </div>
                     </div>
-                    <span
-                      className={`badge ${
-                        rpt.result === 'Passed' ? 'badge-verified-complete' : 'badge-blocked'
-                      }`}
-                    >
-                      {rpt.result}
-                    </span>
                   </div>
                 ))}
               </div>
             )}
-          </div>
-
-          {/* Recent Activity Feed */}
-          <div className="card">
-            <div className="card-header">
-              <div className="card-title">
-                <Clock size={16} color="var(--accent-orange)" />
-                <span>Auditable Activity Feed</span>
-              </div>
-              <button
-                className="btn btn-secondary btn-sm"
-                onClick={() => onNavigate('activity')}
-              >
-                View Audit Log
-              </button>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {recentActivity.slice(0, 5).map((act: any) => (
-                <div
-                  key={act.id}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    gap: '10px',
-                    fontSize: '12.5px',
-                    padding: '8px 0',
-                    borderBottom: '1px solid var(--border-subtle)'
-                  }}
-                >
-                  <div
-                    style={{
-                      width: '6px',
-                      height: '6px',
-                      borderRadius: '50%',
-                      backgroundColor: 'var(--accent-orange)',
-                      marginTop: '6px'
-                    }}
-                  ></div>
-                  <div style={{ flex: 1 }}>
-                    <span style={{ fontWeight: 600, color: 'var(--text-white)' }}>
-                      {act.actor_name || 'System'}:
-                    </span>{' '}
-                    <span style={{ color: 'var(--text-secondary)' }}>
-                      {act.action.replace(/_/g, ' ')}
-                    </span>{' '}
-                    {act.related_task_id && (
-                      <span className="mono" style={{ color: 'var(--accent-orange)' }}>
-                        [{act.related_task_id}]
-                      </span>
-                    )}
-                    <div style={{ fontSize: '10.5px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-                      {new Date(act.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • Source: {act.source}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
           </div>
         </div>
       </div>

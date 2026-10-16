@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Settings, Shield, RefreshCw, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.js';
 import { apiRequest } from '../api/client.js';
+import { useToast } from '../context/ToastContext.js';
 
 interface SettingsPageProps {
   onNavigate?: (page: string) => void;
@@ -9,6 +10,7 @@ interface SettingsPageProps {
 
 export const SettingsPage: React.FC<SettingsPageProps> = ({ onNavigate }) => {
   const { hasRole } = useAuth();
+  const toast = useToast();
   const isAdmin = hasRole('admin');
 
   const [gateConfig, setGateConfig] = useState<any>({
@@ -68,8 +70,9 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onNavigate }) => {
       });
       setGateConfig(res.completionGates);
       setMessage('Studio completion gate policies updated successfully.');
+      toast.success('Studio completion gate policies updated successfully.');
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message);
     } finally {
       setIsSavingGates(false);
     }
@@ -78,7 +81,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onNavigate }) => {
   const handleReseed = async () => {
     if (!isAdmin) return;
     if (reseedConfirm !== 'RESET_TERMINAL_6') {
-      alert('Please type "RESET_TERMINAL_6" to confirm database reseed.');
+      toast.warning('Please type "RESET_TERMINAL_6" to confirm database reseed.');
       return;
     }
 
@@ -88,11 +91,11 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onNavigate }) => {
         method: 'POST',
         body: JSON.stringify({ confirm: 'RESET_TERMINAL_6' })
       });
-      alert(res.message);
+      toast.success(res.message);
       setResetConfirm('');
       fetchSettings();
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message);
     } finally {
       setIsReseeding(false);
     }

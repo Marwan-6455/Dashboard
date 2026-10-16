@@ -30,6 +30,7 @@ import { apiRequest } from '../api/client.js';
 import { useAuth } from '../context/AuthContext.js';
 import { PriorityBadge } from '../components/PriorityBadge.js';
 import { StatusBadge } from '../components/StatusBadge.js';
+import { useToast } from '../context/ToastContext.js';
 
 interface TeamPageProps {
   onNavigateToTasksByOwner?: (ownerId: string) => void;
@@ -53,6 +54,7 @@ export const TeamPage: React.FC<TeamPageProps> = ({
   onNavigateToTasksByTeam
 }) => {
   const { user, hasRole, activeWorkspace } = useAuth();
+  const toast = useToast();
   const [activeTab, setActiveTab] = useState<'teams' | 'directory' | 'invitations'>('teams');
   const [teams, setTeams] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
@@ -119,7 +121,7 @@ export const TeamPage: React.FC<TeamPageProps> = ({
       const res = await apiRequest(`/api/team/${teamId}`);
       setSelectedTeamData(res.team);
     } catch (err: any) {
-      alert(`Failed to load team dashboard: ${err.message}`);
+      toast.error(`Failed to load team dashboard: ${err.message}`);
       setSelectedTeamId(null);
     } finally {
       setIsLoadingTeamDetail(false);
@@ -155,9 +157,11 @@ export const TeamPage: React.FC<TeamPageProps> = ({
 
       const fullUrl = `${window.location.origin}/signup?invite=${res.invitation.invitationToken}`;
       setGeneratedInviteLink(fullUrl);
+      toast.success('Workspace invitation link generated.');
       fetchTeamData();
     } catch (err: any) {
       setError(err.message);
+      toast.error(err.message);
     } finally {
       setIsInviting(false);
     }
@@ -167,6 +171,7 @@ export const TeamPage: React.FC<TeamPageProps> = ({
     if (generatedInviteLink) {
       navigator.clipboard.writeText(generatedInviteLink);
       setCopied(true);
+      toast.success('Invitation link copied to clipboard!');
       setTimeout(() => setCopied(false), 2000);
     }
   };
@@ -175,9 +180,10 @@ export const TeamPage: React.FC<TeamPageProps> = ({
     if (!confirm('Are you sure you want to revoke this invitation?')) return;
     try {
       await apiRequest(`/api/auth/invitations/${invId}`, { method: 'DELETE' });
+      toast.success('Invitation revoked successfully.');
       fetchTeamData();
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message);
     }
   };
 
@@ -204,9 +210,10 @@ export const TeamPage: React.FC<TeamPageProps> = ({
       setNewTeamDescription('');
       setNewTeamDiscordChannel('');
       setNewTeamManagerId('');
+      toast.success(`Studio team "${newTeamName.trim()}" created successfully.`);
       fetchTeamData();
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message);
     } finally {
       setIsCreatingTeam(false);
     }
@@ -229,12 +236,13 @@ export const TeamPage: React.FC<TeamPageProps> = ({
 
       setAssigningTeam(null);
       setAssignUserId('');
+      toast.success('Member assigned to team successfully.');
       fetchTeamData();
       if (selectedTeamId === assigningTeam.id) {
         fetchTeamDetail(assigningTeam.id);
       }
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message);
     } finally {
       setIsAssigning(false);
     }
@@ -245,12 +253,13 @@ export const TeamPage: React.FC<TeamPageProps> = ({
     if (!confirm(`Are you sure you want to remove ${memberName} from this team?`)) return;
     try {
       await apiRequest(`/api/team/${teamId}/members/${memberId}`, { method: 'DELETE' });
+      toast.success(`Removed ${memberName} from team.`);
       fetchTeamData();
       if (selectedTeamId === teamId) {
         fetchTeamDetail(teamId);
       }
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message);
     }
   };
 
@@ -283,9 +292,10 @@ export const TeamPage: React.FC<TeamPageProps> = ({
         })
       });
       setEditingUser(null);
+      toast.success('Team member profile and roles updated.');
       fetchTeamData();
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message);
     } finally {
       setIsSavingUser(false);
     }
@@ -736,7 +746,7 @@ export const TeamPage: React.FC<TeamPageProps> = ({
                 }}
               >
                 <UserPlus size={16} />
-                <span>Invite Member</span>
+                <span>Invite Team Member</span>
               </button>
             </>
           )}
@@ -1234,7 +1244,7 @@ export const TeamPage: React.FC<TeamPageProps> = ({
                               onClick={() => {
                                 const url = `${window.location.origin}/signup?invite=${inv.invitation_token}`;
                                 navigator.clipboard.writeText(url);
-                                alert('Invitation link copied to clipboard!');
+                                toast.success('Invitation link copied to clipboard!');
                               }}
                               title="Copy invitation link"
                             >

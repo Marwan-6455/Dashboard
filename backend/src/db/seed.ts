@@ -120,7 +120,7 @@ export function seedDatabase(db = getDb()): void {
       username: 'lead',
       displayName: 'Marwan Hossam',
       email: 'lead@cindermarch.internal',
-      roles: '["developer", "reviewer"]',
+      roles: '["developer", "reviewer", "admin"]',
       avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=128&q=80',
       passwordHash: '$2b$10$z6mxlHAQVyQRFZ4PjtkRMufgeXKGVSGn5nMqn5Kihz2L4tT1PFbCG' // Terminal6#Studio
     },

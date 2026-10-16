@@ -1,17 +1,21 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Menu, Plus, Bell, Check, User, ExternalLink } from 'lucide-react';
+import { Menu, Plus, Bell, Check, Search, ExternalLink, ChevronRight, CheckSquare } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.js';
 
 interface HeaderProps {
+  currentPage: string;
   onToggleMobileMenu: () => void;
   onOpenNewTaskModal: () => void;
+  onOpenGlobalSearch: () => void;
   onOpenProfileModal?: () => void;
-  onNavigate?: (page: string) => void;
+  onNavigate?: (page: string, params?: any) => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
+  currentPage,
   onToggleMobileMenu,
   onOpenNewTaskModal,
+  onOpenGlobalSearch,
   onOpenProfileModal,
   onNavigate
 }) => {
@@ -29,36 +33,83 @@ export const Header: React.FC<HeaderProps> = ({
   const [showNotifications, setShowNotifications] = useState(false);
   const [showWorkspaceMenu, setShowWorkspaceMenu] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
+  const wsMenuRef = useRef<HTMLDivElement>(null);
 
-  // Close dropdown on outside click
+  // Close dropdowns on outside click
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
         setShowNotifications(false);
+      }
+      if (wsMenuRef.current && !wsMenuRef.current.contains(e.target as Node)) {
+        setShowWorkspaceMenu(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const getPageTitle = (page: string) => {
+    switch (page) {
+      case 'overview':
+        return 'Overview';
+      case 'tasks':
+        return 'Development Tasks';
+      case 'task-detail':
+        return 'Task Specification';
+      case 'team':
+        return 'Studio Departments & Teams';
+      case 'reviews':
+        return 'Peer Review Queue';
+      case 'strikes':
+        return 'Deadline Strikes & Policy';
+      case 'evidence':
+        return 'Verification Evidence Locker';
+      case 'test-reports':
+        return 'Automated Test Ingestion';
+      case 'integrations':
+        return 'Discord Operations Bot';
+      case 'activity':
+        return 'Studio Audit Trail';
+      case 'settings':
+        return 'Hub Settings & Verification Gates';
+      default:
+        return page.charAt(0).toUpperCase() + page.slice(1);
+    }
+  };
+
   return (
     <header className="top-header">
+      {/* Left: Mobile Toggle + Breadcrumbs + Engine Badge */}
       <div className="header-left">
         <button
+          type="button"
           className="mobile-menu-toggle"
           onClick={onToggleMobileMenu}
-          aria-label="Toggle navigation menu"
+          aria-label="Toggle navigation drawer"
         >
           <Menu size={20} />
         </button>
 
-        <div className="project-tag">
-          <span className="project-indicator"></span>
-          <span>Terminal 6 // Unity 6000.0.25f1</span>
+        {/* Studio Breadcrumb Trail */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px' }}>
+          <span style={{ color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.04em' }}>
+            TERMINAL 6
+          </span>
+          <ChevronRight size={14} color="var(--border-strong)" />
+          <span style={{ color: 'var(--text-white)', fontWeight: 700, letterSpacing: '-0.01em' }}>
+            {getPageTitle(currentPage)}
+          </span>
         </div>
 
-        {/* Workspace Indicator & Switcher */}
-        <div style={{ position: 'relative' }}>
+        {/* Engine Build Indicator */}
+        <div className="project-tag" style={{ display: 'none' }}>
+          <span className="project-indicator"></span>
+          <span>Unity 6000.0.25f1</span>
+        </div>
+
+        {/* Workspace Switcher */}
+        <div ref={wsMenuRef} style={{ position: 'relative' }}>
           <button
             type="button"
             onClick={() => setShowWorkspaceMenu(!showWorkspaceMenu)}
@@ -70,12 +121,14 @@ export const Header: React.FC<HeaderProps> = ({
               border: '1px solid var(--border-subtle)',
               padding: '4px 10px',
               borderRadius: 'var(--radius-sm)',
-              fontSize: '12px',
+              fontSize: '11.5px',
               color: 'var(--text-white)',
-              cursor: workspaces.length > 1 ? 'pointer' : 'default'
+              cursor: workspaces.length > 1 ? 'pointer' : 'default',
+              transition: 'border-color var(--transition-fast)'
             }}
+            title={workspaces.length > 1 ? 'Switch Workspace' : undefined}
           >
-            <span style={{ color: 'var(--accent-orange)', fontWeight: 700 }}>WS:</span>
+            <span style={{ color: 'var(--accent-orange)', fontWeight: 800 }}>WS:</span>
             <span>{activeWorkspace?.name || 'Cindermarch Studio'}</span>
           </button>
 
@@ -85,14 +138,15 @@ export const Header: React.FC<HeaderProps> = ({
                 position: 'absolute',
                 top: '100%',
                 left: 0,
-                marginTop: '4px',
-                width: '200px',
+                marginTop: '6px',
+                width: '220px',
                 backgroundColor: 'var(--bg-surface)',
-                border: '1px solid var(--border-subtle)',
-                borderRadius: 'var(--radius-sm)',
-                boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+                border: '1px solid var(--border-strong)',
+                borderRadius: 'var(--radius-md)',
+                boxShadow: 'var(--shadow-lg)',
                 zIndex: 100,
-                padding: '6px 0'
+                padding: '6px 0',
+                animation: 'modal-pop 0.15s ease'
               }}
             >
               <div
@@ -100,8 +154,9 @@ export const Header: React.FC<HeaderProps> = ({
                   fontSize: '10px',
                   fontWeight: 700,
                   color: 'var(--text-secondary)',
-                  padding: '4px 12px',
-                  textTransform: 'uppercase'
+                  padding: '6px 14px',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em'
                 }}
               >
                 Switch Workspace
@@ -109,6 +164,7 @@ export const Header: React.FC<HeaderProps> = ({
               {workspaces.map((ws) => (
                 <button
                   key={ws.id}
+                  type="button"
                   onClick={() => {
                     switchWorkspace(ws.id);
                     setShowWorkspaceMenu(false);
@@ -117,15 +173,17 @@ export const Header: React.FC<HeaderProps> = ({
                     display: 'block',
                     width: '100%',
                     textAlign: 'left',
-                    padding: '8px 12px',
-                    fontSize: '12px',
-                    background: ws.id === activeWorkspace?.id ? 'var(--bg-elevated)' : 'transparent',
+                    padding: '8px 14px',
+                    fontSize: '12.5px',
+                    backgroundColor: ws.id === activeWorkspace?.id ? 'var(--bg-elevated)' : 'transparent',
                     color: ws.id === activeWorkspace?.id ? 'var(--accent-orange)' : 'var(--text-white)',
                     border: 'none',
-                    cursor: 'pointer'
+                    cursor: 'pointer',
+                    transition: 'background var(--transition-fast)'
                   }}
                 >
-                  {ws.name} ({ws.role})
+                  <div style={{ fontWeight: 600 }}>{ws.name}</div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Role: {ws.role}</div>
                 </button>
               ))}
             </div>
@@ -133,8 +191,32 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
       </div>
 
-      <div className="header-right" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-        {/* Notification Bell Dropdown */}
+      {/* Right: Global Search Trigger + New Task + Notification Bell + Profile */}
+      <div className="header-right">
+        {/* Quick Global Task Search Trigger */}
+        <button
+          type="button"
+          className="header-search-trigger"
+          onClick={onOpenGlobalSearch}
+          title="Quick Search (Ctrl+K)"
+        >
+          <Search size={14} color="var(--accent-orange)" />
+          <span style={{ fontSize: '12px' }}>Search studio...</span>
+          <kbd>Ctrl+K</kbd>
+        </button>
+
+        {/* Quick Create Task Action */}
+        <button
+          type="button"
+          className="btn btn-primary btn-sm"
+          onClick={onOpenNewTaskModal}
+          style={{ gap: '6px' }}
+        >
+          <Plus size={15} />
+          <span>New Task</span>
+        </button>
+
+        {/* Studio Notifications Dropdown */}
         <div ref={notifRef} style={{ position: 'relative' }}>
           <button
             type="button"
@@ -143,8 +225,8 @@ export const Header: React.FC<HeaderProps> = ({
             title="Notifications"
             style={{
               position: 'relative',
-              padding: '6px 10px',
-              backgroundColor: showNotifications ? 'var(--bg-elevated)' : undefined
+              padding: '7px 11px',
+              backgroundColor: showNotifications ? 'var(--bg-hover)' : undefined
             }}
           >
             <Bell size={16} />
@@ -155,12 +237,13 @@ export const Header: React.FC<HeaderProps> = ({
                   top: '-4px',
                   right: '-4px',
                   backgroundColor: 'var(--accent-orange)',
-                  color: '#080808',
+                  color: '#080A0E',
                   fontSize: '10px',
-                  fontWeight: 800,
+                  fontWeight: 900,
                   borderRadius: '10px',
                   padding: '1px 5px',
-                  lineHeight: '1.2'
+                  lineHeight: '1.2',
+                  boxShadow: '0 0 8px var(--accent-orange-glow)'
                 }}
               >
                 {unreadNotificationsCount}
@@ -175,16 +258,17 @@ export const Header: React.FC<HeaderProps> = ({
                 top: '100%',
                 right: 0,
                 marginTop: '8px',
-                width: '320px',
-                maxHeight: '400px',
+                width: '340px',
+                maxHeight: '440px',
                 backgroundColor: 'var(--bg-surface)',
-                border: '1px solid var(--border-subtle)',
+                border: '1px solid var(--border-strong)',
                 borderRadius: 'var(--radius-md)',
-                boxShadow: '0 12px 32px rgba(0,0,0,0.7)',
+                boxShadow: 'var(--shadow-lg)',
                 zIndex: 200,
                 display: 'flex',
                 flexDirection: 'column',
-                overflow: 'hidden'
+                overflow: 'hidden',
+                animation: 'modal-pop 0.15s ease'
               }}
             >
               <div
@@ -193,11 +277,12 @@ export const Header: React.FC<HeaderProps> = ({
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   padding: '12px 16px',
-                  borderBottom: '1px solid var(--border-subtle)'
+                  borderBottom: '1px solid var(--border-subtle)',
+                  backgroundColor: 'var(--bg-elevated)'
                 }}
               >
                 <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-white)' }}>
-                  Notifications ({unreadNotificationsCount} unread)
+                  Studio Notifications ({unreadNotificationsCount} unread)
                 </div>
                 {unreadNotificationsCount > 0 && (
                   <button
@@ -211,7 +296,8 @@ export const Header: React.FC<HeaderProps> = ({
                       cursor: 'pointer',
                       display: 'flex',
                       alignItems: 'center',
-                      gap: '4px'
+                      gap: '4px',
+                      fontWeight: 600
                     }}
                   >
                     <Check size={12} />
@@ -224,13 +310,13 @@ export const Header: React.FC<HeaderProps> = ({
                 {notifications.length === 0 ? (
                   <div
                     style={{
-                      padding: '24px',
+                      padding: '32px 20px',
                       textAlign: 'center',
-                      fontSize: '12px',
-                      color: 'var(--text-secondary)'
+                      fontSize: '12.5px',
+                      color: 'var(--text-muted)'
                     }}
                   >
-                    No notifications yet.
+                    No studio notifications yet.
                   </div>
                 ) : (
                   notifications.map((n) => (
@@ -239,60 +325,41 @@ export const Header: React.FC<HeaderProps> = ({
                       onClick={() => {
                         if (!n.is_read) markNotificationRead(n.id);
                         if (n.related_task_id && onNavigate) {
-                          onNavigate('tasks');
+                          onNavigate('tasks', { taskId: n.related_task_id });
                           setShowNotifications(false);
                         }
                       }}
                       style={{
-                        padding: '10px 14px',
+                        padding: '12px 16px',
                         borderBottom: '1px solid var(--border-subtle)',
-                        backgroundColor: n.is_read ? 'transparent' : 'rgba(255, 106, 0, 0.06)',
+                        backgroundColor: n.is_read ? 'transparent' : 'rgba(255, 94, 30, 0.06)',
                         cursor: 'pointer',
-                        transition: 'background 0.15s ease'
+                        transition: 'background var(--transition-fast)'
                       }}
+                      onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.backgroundColor = 'var(--bg-hover)')}
+                      onMouseLeave={(e) =>
+                        ((e.currentTarget as HTMLElement).style.backgroundColor = n.is_read
+                          ? 'transparent'
+                          : 'rgba(255, 94, 30, 0.06)')
+                      }
                     >
-                      <div
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          marginBottom: '4px'
-                        }}
-                      >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '3px' }}>
                         <span
                           style={{
                             fontSize: '12px',
-                            fontWeight: 600,
+                            fontWeight: 700,
                             color: n.is_read ? 'var(--text-white)' : 'var(--accent-orange)'
                           }}
                         >
                           {n.title}
                         </span>
-                        <span
-                          className="mono"
-                          style={{ fontSize: '10px', color: 'var(--text-secondary)' }}
-                        >
+                        <span className="mono" style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
                           {new Date(n.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </span>
                       </div>
-                      <div style={{ fontSize: '11px', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
+                      <div style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
                         {n.message}
                       </div>
-                      {n.related_task_id && (
-                        <div
-                          className="mono"
-                          style={{
-                            fontSize: '10px',
-                            color: 'var(--accent-orange)',
-                            marginTop: '4px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '4px'
-                          }}
-                        >
-                          Task {n.related_task_id} <ExternalLink size={10} />
-                        </div>
-                      )}
                     </div>
                   ))
                 )}
@@ -300,42 +367,6 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
           )}
         </div>
-
-        {/* Profile Avatar Trigger */}
-        {onOpenProfileModal && (
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
-            onClick={onOpenProfileModal}
-            title="Edit Profile"
-            style={{ padding: '4px 8px', display: 'flex', alignItems: 'center', gap: '6px' }}
-          >
-            <div
-              style={{
-                width: '20px',
-                height: '20px',
-                borderRadius: '50%',
-                backgroundColor: 'var(--accent-orange)',
-                color: '#080808',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '10px',
-                fontWeight: 800
-              }}
-            >
-              {user?.displayName ? user.displayName.slice(0, 1).toUpperCase() : 'U'}
-            </div>
-            <span style={{ fontSize: '12px', maxWidth: '80px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {user?.displayName || 'Profile'}
-            </span>
-          </button>
-        )}
-
-        <button className="btn btn-primary btn-sm" onClick={onOpenNewTaskModal}>
-          <Plus size={16} />
-          <span>New Task</span>
-        </button>
       </div>
     </header>
   );

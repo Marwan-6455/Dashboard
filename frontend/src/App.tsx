@@ -18,6 +18,7 @@ import { StrikesPage } from './pages/StrikesPage.js';
 import { LoginPage } from './pages/LoginPage.js';
 import { WorkspaceEntryModal } from './components/WorkspaceEntryModal.js';
 import { WorkspaceSuspendedScreen } from './components/WorkspaceSuspendedScreen.js';
+import { GlobalSearchModal } from './components/GlobalSearchModal.js';
 import { useAuth } from './context/AuthContext.js';
 import { Task, WorkspaceEntryWarning } from './types/index.js';
 import { apiRequest } from './api/client.js';
@@ -29,6 +30,7 @@ export const App: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
   const [isTaskModalOpen, setIsTaskModalOpen] = useState<boolean>(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState<boolean>(false);
+  const [isGlobalSearchOpen, setIsGlobalSearchOpen] = useState<boolean>(false);
   const [taskToEdit, setTaskToEdit] = useState<Task | null>(null);
 
   // Strike & Suspension state
@@ -102,6 +104,23 @@ export const App: React.FC = () => {
       checkWorkspaceEntry();
     }
   }, [user]);
+
+  // Scroll to top on page or task change
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' as ScrollBehavior });
+  }, [currentPage, selectedTaskId]);
+
+  // Global Ctrl+K / Cmd+K listener for quick search
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setIsGlobalSearchOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   if (isLoading) {
     return (
@@ -195,8 +214,10 @@ export const App: React.FC = () => {
 
       <div className="main-content">
         <Header
+          currentPage={currentPage}
           onToggleMobileMenu={() => setMobileMenuOpen(!mobileMenuOpen)}
           onOpenNewTaskModal={handleCreateNewTask}
+          onOpenGlobalSearch={() => setIsGlobalSearchOpen(true)}
           onOpenProfileModal={() => setIsProfileModalOpen(true)}
           onNavigate={handleNavigate}
         />
@@ -312,6 +333,15 @@ export const App: React.FC = () => {
           }}
         />
       )}
+
+      {/* Global Quick Search Modal (Ctrl+K) */}
+      <GlobalSearchModal
+        isOpen={isGlobalSearchOpen}
+        onClose={() => setIsGlobalSearchOpen(false)}
+        tasks={tasksList}
+        onSelectTask={handleOpenTaskDetail}
+        onNavigate={handleNavigate}
+      />
     </div>
   );
 };

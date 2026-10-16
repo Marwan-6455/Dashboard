@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   LayoutDashboard,
   CheckSquare,
+  Clock,
   Users,
   History,
   FileCheck2,
@@ -11,16 +12,33 @@ import {
   Settings,
   LogOut,
   X,
-  ShieldAlert
+  ShieldAlert,
+  ChevronLeft,
+  ChevronRight,
+  Bot,
+  User
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.js';
 
 interface SidebarProps {
   currentPage: string;
-  onNavigate: (page: string) => void;
+  onNavigate: (page: string, params?: any) => void;
   mobileOpen: boolean;
   onCloseMobile: () => void;
   onOpenProfileModal?: () => void;
+}
+
+interface NavItem {
+  id: string;
+  label: string;
+  icon: any;
+  customAction?: () => void;
+  badge?: number | string;
+}
+
+interface NavSection {
+  label: string;
+  items: NavItem[];
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -32,144 +50,175 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const { user, logout, activeWorkspace, unreadNotificationsCount } = useAuth();
 
-  const navItems = [
-    { id: 'overview', label: 'Overview', icon: LayoutDashboard },
-    { id: 'tasks', label: 'Tasks', icon: CheckSquare },
-    { id: 'strikes', label: 'Strikes & Policy', icon: ShieldAlert },
-    { id: 'team', label: 'Team', icon: Users },
-    { id: 'activity', label: 'Activity', icon: History, badge: unreadNotificationsCount },
-    { id: 'reviews', label: 'Reviews', icon: FileCheck2 },
-    { id: 'test-reports', label: 'Test Reports', icon: FileText },
-    { id: 'evidence', label: 'Evidence', icon: FileImage },
-    { id: 'integrations', label: 'Integrations', icon: Layers },
-    { id: 'settings', label: 'Settings', icon: Settings }
+  // Collapsed sidebar preference persisted in localStorage
+  const [collapsed, setCollapsed] = useState<boolean>(() => {
+    return localStorage.getItem('cm_sidebar_collapsed') === 'true';
+  });
+
+  const toggleCollapsed = () => {
+    setCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem('cm_sidebar_collapsed', String(next));
+      return next;
+    });
+  };
+
+  const navSections: NavSection[] = [
+    {
+      label: 'STUDIO OPERATIONS',
+      items: [
+        { id: 'overview', label: 'Overview', icon: LayoutDashboard },
+        {
+          id: 'my-tasks',
+          label: 'My Tasks',
+          icon: User,
+          customAction: () => onNavigate('tasks', { filterOwner: user?.id })
+        },
+        { id: 'tasks', label: 'All Tasks', icon: CheckSquare },
+        {
+          id: 'deadlines',
+          label: 'Deadlines',
+          icon: Clock,
+          customAction: () => onNavigate('tasks', { filterStatus: '', sort: 'deadline' })
+        },
+        { id: 'team', label: 'Teams', icon: Users }
+      ]
+    },
+    {
+      label: 'VERIFICATION & QUALITY',
+      items: [
+        { id: 'reviews', label: 'Reviews', icon: FileCheck2 },
+        { id: 'strikes', label: 'Strike History', icon: ShieldAlert },
+        { id: 'evidence', label: 'Evidence', icon: FileImage },
+        { id: 'test-reports', label: 'Test Reports', icon: FileText }
+      ]
+    },
+    {
+      label: 'PLATFORM & SYSTEM',
+      items: [
+        { id: 'integrations', label: 'Integrations', icon: Bot },
+        { id: 'activity', label: 'Audit Activity', icon: History, badge: unreadNotificationsCount },
+        { id: 'settings', label: 'Settings', icon: Settings }
+      ]
+    }
   ];
 
-  const handleNavClick = (pageId: string) => {
-    onNavigate(pageId);
+  const handleNavClick = (item: any) => {
+    if (item.customAction) {
+      item.customAction();
+    } else {
+      onNavigate(item.id);
+    }
     onCloseMobile();
   };
 
   return (
-    <aside className={`sidebar ${mobileOpen ? 'mobile-open' : ''}`}>
+    <aside className={`sidebar ${collapsed ? 'collapsed' : ''} ${mobileOpen ? 'mobile-open' : ''}`}>
+      {/* Sidebar Branding & Collapse Toggle */}
       <div className="sidebar-brand">
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <img
-              src="/cindermarch-logo.png"
-              alt="Cindermarch Studio"
-              style={{
-                width: '32px',
-                height: '32px',
-                objectFit: 'contain',
-                filter: 'drop-shadow(0 0 8px rgba(255,106,0,0.4))'
-              }}
-            />
-            <div className="brand-title" style={{ fontSize: '15px', letterSpacing: '1px' }}>
-              <span>CINDERMARCH</span>
+        <div className="brand-header-row">
+          <div className="brand-logo-group">
+            <div className="brand-crest">
+              <img
+                src="/cindermarch-logo.png"
+                alt="Cindermarch Studio"
+                style={{
+                  width: '30px',
+                  height: '30px',
+                  objectFit: 'contain'
+                }}
+              />
             </div>
+            {!collapsed && (
+              <div>
+                <div className="brand-title">CINDERMARCH</div>
+                <div className="brand-subtitle">
+                  {activeWorkspace?.name || 'Cindermarch Studio'} // T6
+                </div>
+              </div>
+            )}
           </div>
+
+          {/* Desktop Collapse Toggle */}
           <button
+            type="button"
+            className="sidebar-collapse-toggle"
+            onClick={toggleCollapsed}
+            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            {collapsed ? <ChevronRight size={15} /> : <ChevronLeft size={15} />}
+          </button>
+
+          {/* Mobile Close Button */}
+          <button
+            type="button"
             className="mobile-menu-toggle"
             onClick={onCloseMobile}
-            style={{ display: mobileOpen ? 'block' : 'none' }}
+            style={{ display: mobileOpen ? 'flex' : 'none' }}
+            aria-label="Close navigation drawer"
           >
             <X size={18} />
           </button>
         </div>
-        <div className="brand-subtitle" style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>
-          {activeWorkspace?.name || 'Cindermarch Studio'} // TERMINAL 6
-        </div>
       </div>
 
+      {/* Categorized Navigation */}
       <nav className="sidebar-nav">
-        <div className="nav-section-label">WORKSPACE</div>
-        {navItems.slice(0, 5).map((item) => {
-          const Icon = item.icon;
-          const isActive = currentPage === item.id;
-          return (
-            <button
-              key={item.id}
-              className={`nav-link ${isActive ? 'active' : ''}`}
-              onClick={() => handleNavClick(item.id)}
-              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <Icon size={18} />
-                <span>{item.label}</span>
-              </div>
-              {item.badge && item.badge > 0 ? (
-                <span
-                  style={{
-                    backgroundColor: 'var(--accent-orange)',
-                    color: '#080808',
-                    fontSize: '10px',
-                    fontWeight: 800,
-                    borderRadius: '10px',
-                    padding: '1px 6px'
-                  }}
+        {navSections.map((section, sIdx) => (
+          <React.Fragment key={section.label}>
+            <div className="nav-section-label" style={{ marginTop: sIdx > 0 ? '10px' : '0' }}>
+              {section.label}
+            </div>
+
+            {section.items.map((item) => {
+              const Icon = item.icon;
+              const isActive = currentPage === item.id;
+
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={`nav-link ${isActive ? 'active' : ''}`}
+                  onClick={() => handleNavClick(item)}
+                  title={collapsed ? item.label : undefined}
                 >
-                  {item.badge}
-                </span>
-              ) : null}
-            </button>
-          );
-        })}
+                  <Icon size={18} />
+                  <span>{item.label}</span>
 
-        <div className="nav-section-label" style={{ marginTop: '8px' }}>
-          QUALITY & VERIFICATION
-        </div>
-        {navItems.slice(5, 8).map((item) => {
-          const Icon = item.icon;
-          const isActive = currentPage === item.id;
-          return (
-            <button
-              key={item.id}
-              className={`nav-link ${isActive ? 'active' : ''}`}
-              onClick={() => handleNavClick(item.id)}
-            >
-              <Icon size={18} />
-              <span>{item.label}</span>
-            </button>
-          );
-        })}
-
-        <div className="nav-section-label" style={{ marginTop: '8px' }}>
-          SYSTEM
-        </div>
-        {navItems.slice(8).map((item) => {
-          const Icon = item.icon;
-          const isActive = currentPage === item.id;
-          return (
-            <button
-              key={item.id}
-              className={`nav-link ${isActive ? 'active' : ''}`}
-              onClick={() => handleNavClick(item.id)}
-            >
-              <Icon size={18} />
-              <span>{item.label}</span>
-            </button>
-          );
-        })}
+                  {typeof item.badge === 'number' && item.badge > 0 ? (
+                    <span className="nav-count-badge badge-alert">
+                      {item.badge}
+                    </span>
+                  ) : null}
+                </button>
+              );
+            })}
+          </React.Fragment>
+        ))}
       </nav>
 
+      {/* Footer User Profile & Logout */}
       <div className="sidebar-footer">
         <div
           className="user-profile-chip"
           onClick={onOpenProfileModal}
           style={{ cursor: onOpenProfileModal ? 'pointer' : 'default' }}
-          title="Click to edit profile"
+          title={collapsed ? `${user?.displayName || 'Developer'} (Click to view profile)` : 'Click to view profile'}
         >
           <div className="user-avatar">
             {user?.displayName ? user.displayName.slice(0, 1).toUpperCase() : 'U'}
           </div>
+
           <div className="user-details">
             <div className="user-name">{user?.displayName || 'Developer'}</div>
             <div className="user-role-tag">
               {user?.roles?.join(' • ') || 'developer'}
             </div>
           </div>
+
           <button
+            type="button"
             className="logout-btn"
             title="Log Out"
             onClick={(e) => {

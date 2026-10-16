@@ -168,12 +168,17 @@ async function runBrowserTests() {
     console.log('\n[6/13] Navigating to Team Directory & Checking Profiles...');
     await page.click('button.nav-link:has-text("Team")');
     await page.waitForSelector('.page-wrapper', { timeout: 10000 });
-    await page.waitForSelector('.card:has-text("Engine Lead")', { timeout: 10000 });
+    await page.waitForTimeout(500);
 
-    const hasLead = (await page.locator('.card:has-text("Engine Lead")').count()) > 0;
-    const hasYehia = (await page.locator('.card:has-text("Yehia")').count()) > 0;
-    const hasJoe = (await page.locator('.card:has-text("Joe")').count()) > 0;
     const hasInviteBtn = await page.locator('button:has-text("Invite Team Member")').isVisible();
+
+    // Click Workspace Directory tab
+    await page.click('button:has-text("Workspace Directory")');
+    await page.waitForTimeout(500);
+
+    const hasLead = (await page.locator('text=Engine Lead').count()) > 0;
+    const hasYehia = (await page.locator('text=Yehia').count()) > 0;
+    const hasJoe = (await page.locator('text=Joe').count()) > 0;
 
     console.log(`  - Engine Lead Profile: ${hasLead}`);
     console.log(`  - Yehia Profile: ${hasYehia}`);
@@ -193,6 +198,9 @@ async function runBrowserTests() {
     console.log('\n[7/13] Checking Review Queue...');
     await page.click('button.nav-link:has-text("Reviews")');
     await page.waitForSelector('.card-title:has-text("Review Queue")', { timeout: 10000 });
+
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.waitForTimeout(300);
 
     const reviewsTitle = await page.textContent('h1');
     const hasReviewsPage = reviewsTitle?.includes('Peer Review System');
@@ -263,6 +271,9 @@ async function runBrowserTests() {
 
     const hasGatePolicies = await page.locator('.card-title:has-text("Completion Gates Policy Configuration")').isVisible();
     console.log(`  - Quality Gate Policies visible: ${hasGatePolicies}`);
+
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.waitForTimeout(300);
 
     results['11. Settings & Quality Gate Policies'] = hasGatePolicies ? 'PASS' : 'FAIL';
     await page.screenshot({ path: path.join(SCREENSHOT_DIR, '10_settings_page.png') });

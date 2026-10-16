@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext.js';
 import { apiRequest } from '../api/client.js';
 import { Strike, StrikePolicy, StrikeOverviewMember } from '../types/index.js';
+import { useToast } from '../context/ToastContext.js';
 
 interface StrikesPageProps {
   onNavigateToTask?: (taskId: string) => void;
@@ -9,6 +10,7 @@ interface StrikesPageProps {
 
 export const StrikesPage: React.FC<StrikesPageProps> = ({ onNavigateToTask }) => {
   const { user, hasRole } = useAuth();
+  const toast = useToast();
   const isAdmin = hasRole('admin') || hasRole('owner');
 
   // Member state
@@ -109,14 +111,18 @@ export const StrikesPage: React.FC<StrikesPageProps> = ({ onNavigateToTask }) =>
     setActionError(null);
     try {
       const res = await apiRequest('/api/strikes/evaluate-now', { method: 'POST' });
-      setActionSuccess(`Deadline evaluation complete: ${res.issuedCount} qualifying strike(s) issued.`);
+      const msg = `Deadline evaluation complete: ${res.issuedCount} qualifying strike(s) issued.`;
+      setActionSuccess(msg);
+      toast.info(msg);
       fetchMemberStatus();
       if (isAdmin) {
         fetchAdminOverview();
         fetchAdminHistory();
       }
     } catch (err: any) {
-      setActionError(err.message || 'Evaluation failed.');
+      const errM = err.message || 'Evaluation failed.';
+      setActionError(errM);
+      toast.error(errM);
     } finally {
       setIsEvaluating(false);
     }
@@ -130,12 +136,15 @@ export const StrikesPage: React.FC<StrikesPageProps> = ({ onNavigateToTask }) =>
         method: 'POST',
         body: JSON.stringify({ reason: disputeReason.trim() })
       });
-      setActionSuccess('Dispute submitted successfully for administrative review.');
+      const msg = 'Dispute submitted successfully for administrative review.';
+      setActionSuccess(msg);
+      toast.success(msg);
       setDisputeModalStrike(null);
       setDisputeReason('');
       fetchMemberStatus();
     } catch (err: any) {
       setActionError(err.message);
+      toast.error(err.message);
     }
   };
 
@@ -147,7 +156,9 @@ export const StrikesPage: React.FC<StrikesPageProps> = ({ onNavigateToTask }) =>
         method: 'POST',
         body: JSON.stringify({ reason: reversalReason.trim() })
       });
-      setActionSuccess('Strike reversed and active count recalculated.');
+      const msg = 'Strike reversed and active count recalculated.';
+      setActionSuccess(msg);
+      toast.success(msg);
       setReverseModalStrike(null);
       setReversalReason('');
       fetchMemberStatus();
@@ -155,6 +166,7 @@ export const StrikesPage: React.FC<StrikesPageProps> = ({ onNavigateToTask }) =>
       fetchAdminHistory();
     } catch (err: any) {
       setActionError(err.message);
+      toast.error(err.message);
     }
   };
 
@@ -166,11 +178,14 @@ export const StrikesPage: React.FC<StrikesPageProps> = ({ onNavigateToTask }) =>
         method: 'POST',
         body: JSON.stringify({ action, notes: notes.trim() })
       });
-      setActionSuccess(`Dispute ${action}d successfully.`);
+      const msg = `Dispute ${action}d successfully.`;
+      setActionSuccess(msg);
+      toast.success(msg);
       fetchAdminOverview();
       fetchAdminHistory();
     } catch (err: any) {
       setActionError(err.message);
+      toast.error(err.message);
     }
   };
 
@@ -182,12 +197,15 @@ export const StrikesPage: React.FC<StrikesPageProps> = ({ onNavigateToTask }) =>
         method: 'POST',
         body: JSON.stringify({ reason: suspendReason.trim() })
       });
-      setActionSuccess(`Member ${suspendModalUser.display_name} has been suspended.`);
+      const msg = `Member ${suspendModalUser.display_name} has been suspended.`;
+      setActionSuccess(msg);
+      toast.warning(msg);
       setSuspendModalUser(null);
       setSuspendReason('');
       fetchAdminOverview();
     } catch (err: any) {
       setActionError(err.message);
+      toast.error(err.message);
     }
   };
 
@@ -199,12 +217,15 @@ export const StrikesPage: React.FC<StrikesPageProps> = ({ onNavigateToTask }) =>
         method: 'POST',
         body: JSON.stringify({ reason: reinstateReason.trim() })
       });
-      setActionSuccess(`Member ${reinstateModalUser.display_name} has been reinstated.`);
+      const msg = `Member ${reinstateModalUser.display_name} has been reinstated.`;
+      setActionSuccess(msg);
+      toast.success(msg);
       setReinstateModalUser(null);
       setReinstateReason('');
       fetchAdminOverview();
     } catch (err: any) {
       setActionError(err.message);
+      toast.error(err.message);
     }
   };
 
@@ -216,10 +237,13 @@ export const StrikesPage: React.FC<StrikesPageProps> = ({ onNavigateToTask }) =>
         method: 'PATCH',
         body: JSON.stringify(policyData)
       });
-      setActionSuccess('Policy configuration updated and audited.');
+      const msg = 'Policy configuration updated and audited.';
+      setActionSuccess(msg);
+      toast.success(msg);
       setPolicyData(res.policy);
     } catch (err: any) {
       setActionError(err.message);
+      toast.error(err.message);
     }
   };
 

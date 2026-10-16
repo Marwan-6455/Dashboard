@@ -31,6 +31,7 @@ import { EvidenceModal } from '../components/EvidenceModal.js';
 import { TestReportModal } from '../components/TestReportModal.js';
 import { useAuth } from '../context/AuthContext.js';
 import { apiRequest } from '../api/client.js';
+import { useToast } from '../context/ToastContext.js';
 
 interface TaskDetailPageProps {
   taskId: string;
@@ -46,6 +47,7 @@ export const TaskDetailPage: React.FC<TaskDetailPageProps> = ({
   teamUsers = []
 }) => {
   const { user, hasRole } = useAuth();
+  const toast = useToast();
   const isAdminOrOwner = hasRole('admin') || hasRole('owner');
   const [task, setTask] = useState<Task | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -82,6 +84,7 @@ export const TaskDetailPage: React.FC<TaskDetailPageProps> = ({
       setError(null);
     } catch (err: any) {
       setError(err.message);
+      toast.error(`Failed to load task details: ${err.message}`);
     } finally {
       setIsLoading(false);
     }
@@ -94,7 +97,7 @@ export const TaskDetailPage: React.FC<TaskDetailPageProps> = ({
   const handleExtendDeadline = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newExtendedDeadline || !extensionReason) {
-      alert('Please provide both the new deadline and an approved justification reason.');
+      toast.warning('Please provide both the new deadline and an approved justification reason.');
       return;
     }
     setIsSubmittingExtension(true);
@@ -109,9 +112,10 @@ export const TaskDetailPage: React.FC<TaskDetailPageProps> = ({
       setIsExtendModalOpen(false);
       setNewExtendedDeadline('');
       setExtensionReason('');
+      toast.success('Deadline extension recorded and deadline reset.');
       fetchTask();
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message);
     } finally {
       setIsSubmittingExtension(false);
     }
@@ -120,7 +124,7 @@ export const TaskDetailPage: React.FC<TaskDetailPageProps> = ({
   const handleExemptDeadline = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!exemptionReason) {
-      alert('Please document a valid reason for exempting this deadline from strikes.');
+      toast.warning('Please document a valid reason for exempting this deadline from strikes.');
       return;
     }
     setIsSubmittingExemption(true);
@@ -133,9 +137,10 @@ export const TaskDetailPage: React.FC<TaskDetailPageProps> = ({
       });
       setIsExemptModalOpen(false);
       setExemptionReason('');
+      toast.success('Task deadline exempted from strike evaluation.');
       fetchTask();
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message);
     } finally {
       setIsSubmittingExemption(false);
     }
@@ -147,9 +152,10 @@ export const TaskDetailPage: React.FC<TaskDetailPageProps> = ({
         method: 'PATCH',
         body: JSON.stringify({ status: newStatus })
       });
+      toast.success(`Task status moved to ${newStatus}`);
       fetchTask();
     } catch (err: any) {
-      alert(`Cannot move to ${newStatus}:\n\n${err.message}`);
+      toast.error(`Cannot move to ${newStatus}: ${err.message}`);
       fetchTask(); // reset UI
     }
   };
@@ -160,9 +166,10 @@ export const TaskDetailPage: React.FC<TaskDetailPageProps> = ({
         method: 'PATCH',
         body: JSON.stringify({ isSatisfied: currentStatus === 1 ? false : true })
       });
+      toast.success('Acceptance criterion updated.');
       fetchTask();
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message);
     }
   };
 
@@ -176,9 +183,10 @@ export const TaskDetailPage: React.FC<TaskDetailPageProps> = ({
         body: JSON.stringify({ title: newCriterionTitle.trim() })
       });
       setNewCriterionTitle('');
+      toast.success('Acceptance criterion added.');
       fetchTask();
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message);
     }
   };
 
@@ -192,9 +200,10 @@ export const TaskDetailPage: React.FC<TaskDetailPageProps> = ({
         body: JSON.stringify({ content: newComment.trim() })
       });
       setNewComment('');
+      toast.success('Comment posted to task record.');
       fetchTask();
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message);
     }
   };
 
@@ -204,9 +213,10 @@ export const TaskDetailPage: React.FC<TaskDetailPageProps> = ({
       await apiRequest(`/api/tasks/${taskId}/changesets/${csId}`, {
         method: 'DELETE'
       });
+      toast.success('UVCS changeset unlinked.');
       fetchTask();
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message);
     }
   };
 

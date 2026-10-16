@@ -17,8 +17,10 @@ import {
   Bell
 } from 'lucide-react';
 import { apiRequest } from '../api/client.js';
+import { useToast } from '../context/ToastContext.js';
 
 export const IntegrationsPage: React.FC = () => {
+  const toast = useToast();
   const [uvcsStatus, setUvcsStatus] = useState<any>(null);
   const [discordData, setDiscordData] = useState<any>(null);
   const [isTestingUVCS, setIsTestingUVCS] = useState(false);
@@ -116,10 +118,10 @@ export const IntegrationsPage: React.FC = () => {
     if (!confirm('Are you sure you want to unlink your Discord account?')) return;
     try {
       const res = await apiRequest('/api/integrations/discord/link/unlink', { method: 'POST' });
-      alert(res.message);
+      toast.success(res.message);
       fetchIntegrations();
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message);
     }
   };
 
@@ -151,10 +153,10 @@ export const IntegrationsPage: React.FC = () => {
           }
         })
       });
-      alert('Discord guild & 6-team channel mappings saved successfully.');
+      toast.success('Discord guild & 6-team channel mappings saved successfully.');
       fetchIntegrations();
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message);
     } finally {
       setIsSavingChannels(false);
     }
@@ -166,9 +168,11 @@ export const IntegrationsPage: React.FC = () => {
     try {
       const res = await apiRequest('/api/integrations/discord/dispatch-test', { method: 'POST' });
       setDispatchResult(res);
+      toast.success('Test notification dispatched to Discord outbox.');
       fetchIntegrations();
     } catch (err: any) {
       setDispatchResult({ queued: false, message: err.message });
+      toast.error(`Dispatch failed: ${err.message}`);
     } finally {
       setIsDispatchingTest(false);
     }
@@ -180,8 +184,10 @@ export const IntegrationsPage: React.FC = () => {
     try {
       const res = await apiRequest('/api/integrations/uvcs/test', { method: 'POST' });
       setUvcsTestResult(res.result);
+      toast.success('UVCS connection test completed.');
     } catch (err: any) {
       setUvcsTestResult({ status: 'error', message: err.message });
+      toast.error(`UVCS test error: ${err.message}`);
     } finally {
       setIsTestingUVCS(false);
     }
@@ -200,10 +206,10 @@ export const IntegrationsPage: React.FC = () => {
           notifyOnFailedTest: true
         })
       });
-      alert('Discord webhook configuration saved.');
+      toast.success('Discord webhook configuration saved.');
       fetchIntegrations();
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message);
     } finally {
       setIsSavingWebhook(false);
     }
