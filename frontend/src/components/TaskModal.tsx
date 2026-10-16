@@ -36,6 +36,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
   const [status, setStatus] = useState<TaskStatus>('Backlog');
   const [ownerId, setOwnerId] = useState('');
   const [reviewerId, setReviewerId] = useState('');
+  const [teamId, setTeamId] = useState('');
   const [deadline, setDeadline] = useState('');
   const [estimatedEffort, setEstimatedEffort] = useState('');
   const [actualEffort, setActualEffort] = useState('');
@@ -57,6 +58,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
       setCategory(taskToEdit.category || 'Gameplay');
       setPriority(taskToEdit.priority);
       setStatus(taskToEdit.status);
+      setTeamId((taskToEdit as any).team_id || '');
       setOwnerId(taskToEdit.owner_id || '');
       setReviewerId(taskToEdit.reviewer_id || '');
       setDeadline(taskToEdit.deadline ? taskToEdit.deadline.slice(0, 10) : '');
@@ -132,6 +134,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
             description,
             category,
             priority,
+            teamId: teamId || null,
             ownerId: ownerId || null,
             reviewerId: reviewerId || null,
             deadline: deadline ? `${deadline}T18:00:00Z` : null,
@@ -154,6 +157,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
             category,
             priority,
             status,
+            teamId: teamId || null,
             ownerId: ownerId || null,
             reviewerId: reviewerId || null,
             deadline: deadline ? `${deadline}T18:00:00Z` : null,
@@ -256,6 +260,23 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                   </select>
                 </div>
               )}
+
+              <div className="form-group">
+                <label className="form-label">Studio Team</label>
+                <select
+                  className="form-control"
+                  value={teamId}
+                  onChange={(e) => setTeamId(e.target.value)}
+                >
+                  <option value="">No Team Assigned</option>
+                  <option value="team_story">Story Team</option>
+                  <option value="team_coding">Coding Team</option>
+                  <option value="team_marketing">Marketing Team</option>
+                  <option value="team_engine">Engine Team</option>
+                  <option value="team_3d_artists">3D Artists</option>
+                  <option value="team_sound">Sound Team</option>
+                </select>
+              </div>
 
               <div className="form-group">
                 <label className="form-label">Task Owner (Developer)</label>

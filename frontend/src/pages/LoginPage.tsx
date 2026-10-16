@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, KeyRound, AlertCircle, UserPlus, CheckCircle2 } from 'lucide-react';
+import { KeyRound, AlertCircle, UserPlus, CheckCircle2, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.js';
 import { apiRequest } from '../api/client.js';
 
@@ -8,14 +8,16 @@ export const LoginPage: React.FC = () => {
   const [tab, setTab] = useState<'login' | 'signup'>('login');
 
   // Login form state
-  const [loginUsername, setLoginUsername] = useState('lead');
-  const [loginPassword, setLoginPassword] = useState('Terminal6#Studio');
+  const [loginUsername, setLoginUsername] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
 
   // Signup form state
   const [signupUsername, setSignupUsername] = useState('');
   const [signupEmail, setSignupEmail] = useState('');
   const [signupDisplayName, setSignupDisplayName] = useState('');
   const [signupPassword, setSignupPassword] = useState('');
+  const [showSignupPassword, setShowSignupPassword] = useState(false);
   const [invitationToken, setInvitationToken] = useState('');
   const [inviteDetails, setInviteDetails] = useState<{
     workspaceName: string;
@@ -51,7 +53,7 @@ export const LoginPage: React.FC = () => {
         if (data.email) setSignupEmail(data.email);
       }
     } catch (err: any) {
-      setError(`Invitation check failed: ${err.message}`);
+      setError(`Invitation verification failed: ${err.message}`);
     }
   };
 
@@ -60,34 +62,40 @@ export const LoginPage: React.FC = () => {
     setError(null);
     setSuccessMessage(null);
     try {
-      await login(loginUsername, loginPassword);
+      await login(loginUsername.trim(), loginPassword);
     } catch (err: any) {
-      setError(err.message);
+      setError(err.message || 'Authentication failed. Please check credentials.');
     }
+  };
+
+  const handleQuickSelect = (username: string) => {
+    setLoginUsername(username);
+    setLoginPassword('Terminal6#Studio');
+    setError(null);
   };
 
   const handleSignupSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setSuccessMessage(null);
+
+    if (signupUsername.length < 3) {
+      setError('Username must be at least 3 characters.');
+      return;
+    }
+
     try {
       await signup({
-        username: signupUsername,
-        email: signupEmail,
-        displayName: signupDisplayName,
+        username: signupUsername.trim(),
+        email: signupEmail.trim(),
+        displayName: signupDisplayName.trim(),
         password: signupPassword,
         invitationToken: invitationToken.trim() || undefined
       });
-      setSuccessMessage('Account registered successfully! Welcome to Cindermarch Hub.');
+      setSuccessMessage('Account created successfully! Welcome to Cindermarch Studio.');
     } catch (err: any) {
-      setError(err.message);
+      setError(err.message || 'Registration failed.');
     }
-  };
-
-  const handleQuickSelect = (userKey: string) => {
-    setLoginUsername(userKey);
-    setLoginPassword('Terminal6#Studio');
-    setError(null);
   };
 
   return (
@@ -138,7 +146,7 @@ export const LoginPage: React.FC = () => {
             CINDERMARCH ENGINE HUB
           </h1>
           <div className="mono" style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-            TERMINAL 6 // MULTI-USER WORKSPACE
+            TERMINAL 6 // STUDIO MANAGEMENT PLATFORM
           </div>
         </div>
 
@@ -216,12 +224,12 @@ export const LoginPage: React.FC = () => {
             }}
           >
             <div style={{ fontWeight: 600, color: 'var(--accent-orange)', marginBottom: '4px' }}>
-              Workspace Invitation Detected
+              Workspace Invitation Verified
             </div>
             <div style={{ color: 'var(--text-secondary)' }}>
               Invited by <strong style={{ color: 'var(--text-white)' }}>{inviteDetails.invitedByName}</strong> to join{' '}
-              <strong style={{ color: 'var(--text-white)' }}>{inviteDetails.workspaceName}</strong> as a{' '}
-              <strong style={{ color: 'var(--accent-orange)' }}>{inviteDetails.role}</strong>.
+              <strong style={{ color: 'var(--text-white)' }}>{inviteDetails.workspaceName}</strong> as{' '}
+              <strong style={{ color: 'var(--accent-orange)', textTransform: 'capitalize' }}>{inviteDetails.role}</strong>.
             </div>
           </div>
         )}
@@ -229,33 +237,59 @@ export const LoginPage: React.FC = () => {
         {tab === 'login' ? (
           <form onSubmit={handleLoginSubmit}>
             <div className="form-group">
-              <label className="form-label">Studio Username or Email</label>
+              <label className="form-label">Username or Email</label>
               <input
                 type="text"
                 className="form-control"
-                placeholder="e.g. lead, yehia, joe"
+                placeholder="Enter your studio username or email"
                 value={loginUsername}
                 onChange={(e) => setLoginUsername(e.target.value)}
                 required
+                autoFocus
               />
             </div>
 
             <div className="form-group" style={{ marginBottom: '24px' }}>
               <label className="form-label">Password</label>
-              <input
-                type="password"
-                className="form-control"
-                value={loginPassword}
-                onChange={(e) => setLoginPassword(e.target.value)}
-                required
-              />
+              <div style={{ position: 'relative' }}>
+                <input
+                  type={showLoginPassword ? 'text' : 'password'}
+                  className="form-control"
+                  placeholder="Enter your password"
+                  value={loginPassword}
+                  onChange={(e) => setLoginPassword(e.target.value)}
+                  style={{ paddingRight: '40px' }}
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowLoginPassword(!showLoginPassword)}
+                  style={{
+                    position: 'absolute',
+                    right: '10px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--text-muted)',
+                    cursor: 'pointer',
+                    padding: '4px',
+                    display: 'flex',
+                    alignItems: 'center'
+                  }}
+                  tabIndex={-1}
+                  aria-label={showLoginPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showLoginPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
             </div>
 
             <button
               type="submit"
               className="btn btn-primary"
               style={{ width: '100%', justifyContent: 'center', height: '42px', fontSize: '14px' }}
-              disabled={isLoading}
+              disabled={isLoading || !loginUsername || !loginPassword}
             >
               <KeyRound size={16} />
               {isLoading ? 'Authenticating...' : 'Sign In to Hub'}
@@ -266,7 +300,7 @@ export const LoginPage: React.FC = () => {
                 className="mono"
                 style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '10px', textAlign: 'center' }}
               >
-                TEAM DEV PROFILES
+                STUDIO DEV PROFILES
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
                 <button
@@ -276,7 +310,7 @@ export const LoginPage: React.FC = () => {
                     fontSize: '11px',
                     padding: '8px 4px',
                     justifyContent: 'center',
-                    borderColor: loginUsername === 'lead' ? 'var(--accent-orange)' : undefined
+                    borderColor: (loginUsername === 'lead' || loginUsername === 'marwan') ? 'var(--accent-orange)' : undefined
                   }}
                   onClick={() => handleQuickSelect('lead')}
                 >
@@ -318,10 +352,11 @@ export const LoginPage: React.FC = () => {
               <input
                 type="text"
                 className="form-control"
-                placeholder="e.g. Yehia Ibrahim"
+                placeholder="e.g. Marwan Hossam"
                 value={signupDisplayName}
                 onChange={(e) => setSignupDisplayName(e.target.value)}
                 required
+                autoFocus
               />
             </div>
 
@@ -330,7 +365,7 @@ export const LoginPage: React.FC = () => {
               <input
                 type="text"
                 className="form-control"
-                placeholder="e.g. yehia"
+                placeholder="Alphanumeric characters only"
                 value={signupUsername}
                 onChange={(e) => setSignupUsername(e.target.value)}
                 required
@@ -342,7 +377,7 @@ export const LoginPage: React.FC = () => {
               <input
                 type="email"
                 className="form-control"
-                placeholder="developer@cindermarch.studio"
+                placeholder="name@domain.com"
                 value={signupEmail}
                 onChange={(e) => setSignupEmail(e.target.value)}
                 required
@@ -351,25 +386,49 @@ export const LoginPage: React.FC = () => {
 
             <div className="form-group">
               <label className="form-label">Password (min 6 characters)</label>
-              <input
-                type="password"
-                className="form-control"
-                placeholder="••••••••"
-                value={signupPassword}
-                onChange={(e) => setSignupPassword(e.target.value)}
-                required
-                minLength={6}
-              />
+              <div style={{ position: 'relative' }}>
+                <input
+                  type={showSignupPassword ? 'text' : 'password'}
+                  className="form-control"
+                  placeholder="••••••••"
+                  value={signupPassword}
+                  onChange={(e) => setSignupPassword(e.target.value)}
+                  style={{ paddingRight: '40px' }}
+                  required
+                  minLength={6}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowSignupPassword(!showSignupPassword)}
+                  style={{
+                    position: 'absolute',
+                    right: '10px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--text-muted)',
+                    cursor: 'pointer',
+                    padding: '4px',
+                    display: 'flex',
+                    alignItems: 'center'
+                  }}
+                  tabIndex={-1}
+                  aria-label={showSignupPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showSignupPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
             </div>
 
             <div className="form-group" style={{ marginBottom: '24px' }}>
               <label className="form-label">
-                Invitation Token <span style={{ color: 'var(--text-secondary)', fontWeight: 400 }}>(Optional)</span>
+                Invitation Token <span style={{ color: 'var(--text-secondary)', fontWeight: 400 }}>(Required for Cindermarch Studio)</span>
               </label>
               <input
                 type="text"
                 className="form-control"
-                placeholder="e.g. inv_..."
+                placeholder="inv_..."
                 value={invitationToken}
                 onChange={(e) => {
                   setInvitationToken(e.target.value);
@@ -377,7 +436,7 @@ export const LoginPage: React.FC = () => {
                 }}
               />
               <span style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px', display: 'block' }}>
-                Join Cindermarch Studio workspace if invited by the Engine Lead.
+                Direct registration creates an isolated personal space. Enter an invitation code to join the private Cindermarch Studio workspace.
               </span>
             </div>
 
@@ -385,10 +444,10 @@ export const LoginPage: React.FC = () => {
               type="submit"
               className="btn btn-primary"
               style={{ width: '100%', justifyContent: 'center', height: '42px', fontSize: '14px' }}
-              disabled={isLoading}
+              disabled={isLoading || !signupUsername || !signupEmail || !signupPassword}
             >
               <UserPlus size={16} />
-              {isLoading ? 'Creating Account...' : 'Register & Join Studio'}
+              {isLoading ? 'Creating Account...' : 'Register & Join'}
             </button>
           </form>
         )}

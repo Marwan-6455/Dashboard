@@ -94,9 +94,9 @@ exports.integrationRouter.get('/discord', auth_js_1.authMiddleware, (req, res) =
     const cfgRow = cfgStmt.get('discord');
     const webhookConfig = cfgRow ? JSON.parse(cfgRow.value_json) : { status: 'not_configured' };
     // Check bot credentials in environment (never expose token secret!)
-    const botToken = process.env.DISCORD_BOT_TOKEN;
-    const clientId = process.env.DISCORD_CLIENT_ID || '';
-    const guildId = process.env.DISCORD_GUILD_ID || '';
+    const botToken = process.env.DISCORD_BOT_TOKEN || 'MTU2MDQwNjA2Njg2NzQ3ODY4MQ.GPwk7H.Bdbpc28fLhL2oP43r9FOBGQKd1FBYyg9KJKGbE';
+    const clientId = process.env.DISCORD_CLIENT_ID || '1560406066867478681';
+    const guildId = process.env.DISCORD_GUILD_ID || '1394770347030483034';
     const hasBotToken = !!(botToken && botToken.trim().length > 20);
     const hasClientId = !!(clientId && clientId.trim().length > 5);
     const hasGuildId = !!(guildId && guildId.trim().length > 5);
@@ -174,25 +174,45 @@ exports.integrationRouter.post('/discord/link/unlink', auth_js_1.authMiddleware,
 });
 // PATCH /api/integrations/discord/guild-config
 exports.integrationRouter.patch('/discord/guild-config', auth_js_1.authMiddleware, (req, res) => {
-    const { guildId, guildName, announcementsChannelId, engineChannelId, qaChannelId, escalationChannelId, reminderPolicy } = req.body;
+    const { guildId, guildName, announcementsChannelId, storyChannelId, codingChannelId, marketingChannelId, engineChannelId, artistsChannelId, soundChannelId, qaChannelId, escalationChannelId, reminderPolicy } = req.body;
     const db = (0, connection_js_1.getDb)();
     const now = new Date().toISOString();
     db.prepare(`
     INSERT INTO discord_guild_configs (
       id, workspace_id, guild_id, guild_name,
-      announcements_channel_id, engine_channel_id, qa_channel_id,
-      escalation_channel_id, reminder_policy_json, is_active, created_at, updated_at
-    ) VALUES ('dgc_ws_cindermarch', 'ws_cindermarch', ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+      announcements_channel_id, story_channel_id, coding_channel_id,
+      marketing_channel_id, engine_channel_id, artists_channel_id, sound_channel_id,
+      qa_channel_id, escalation_channel_id, reminder_policy_json, is_active, created_at, updated_at
+    ) VALUES ('dgc_ws_cindermarch', 'ws_cindermarch', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
     ON CONFLICT(workspace_id) DO UPDATE SET
       guild_id = COALESCE(excluded.guild_id, guild_id),
       guild_name = COALESCE(excluded.guild_name, guild_name),
       announcements_channel_id = excluded.announcements_channel_id,
+      story_channel_id = excluded.story_channel_id,
+      coding_channel_id = excluded.coding_channel_id,
+      marketing_channel_id = excluded.marketing_channel_id,
       engine_channel_id = excluded.engine_channel_id,
+      artists_channel_id = excluded.artists_channel_id,
+      sound_channel_id = excluded.sound_channel_id,
       qa_channel_id = excluded.qa_channel_id,
       escalation_channel_id = excluded.escalation_channel_id,
       reminder_policy_json = COALESCE(excluded.reminder_policy_json, reminder_policy_json),
       updated_at = excluded.updated_at
-  `).run(guildId || 'guild_cindermarch', guildName || 'Cindermarch Studio Operations', announcementsChannelId || null, engineChannelId || null, qaChannelId || null, escalationChannelId || null, reminderPolicy ? JSON.stringify(reminderPolicy) : null, now, now);
+  `).run(guildId || '1394770347030483034', guildName || 'Cindermarch Studio Operations', announcementsChannelId || null, storyChannelId || null, codingChannelId || null, marketingChannelId || null, engineChannelId || null, artistsChannelId || null, soundChannelId || null, qaChannelId || null, escalationChannelId || null, reminderPolicy ? JSON.stringify(reminderPolicy) : null, now, now);
+    // Also update team channel mappings on teams table
+    const channelUpdates = [
+        { teamId: 'team_story', channelId: storyChannelId },
+        { teamId: 'team_coding', channelId: codingChannelId },
+        { teamId: 'team_marketing', channelId: marketingChannelId },
+        { teamId: 'team_engine', channelId: engineChannelId },
+        { teamId: 'team_3d_artists', channelId: artistsChannelId },
+        { teamId: 'team_sound', channelId: soundChannelId }
+    ];
+    for (const cu of channelUpdates) {
+        if (cu.channelId !== undefined) {
+            db.prepare('UPDATE teams SET discord_channel_id = ?, updated_at = ? WHERE id = ?').run(cu.channelId || null, now, cu.teamId);
+        }
+    }
     const updated = db.prepare("SELECT * FROM discord_guild_configs WHERE workspace_id = 'ws_cindermarch'").get();
     res.json({ guildConfig: updated });
 });

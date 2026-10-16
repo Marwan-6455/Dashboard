@@ -78,7 +78,7 @@ export class HubClient {
     );
   }
 
-  async getTeamTasks(discordUserId: string, filters: { status?: string; priority?: string; category?: string; search?: string } = {}) {
+  async getTeamTasks(discordUserId: string, filters: { status?: string; priority?: string; category?: string; teamId?: string; search?: string } = {}) {
     return this.request<{ total: number; tasks: any[] }>('/tasks/team-tasks', {
       query: { discordUserId, ...filters }
     });
@@ -94,6 +94,7 @@ export class HubClient {
     description: string;
     priority?: string;
     category?: string;
+    teamId?: string;
     deadline?: string;
     ownerUsernameOrId?: string;
     reviewerUsernameOrId?: string;

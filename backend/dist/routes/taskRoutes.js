@@ -10,7 +10,7 @@ const gateService_js_1 = require("../services/gateService.js");
 exports.taskRouter = (0, express_1.Router)();
 exports.taskRouter.use(auth_js_1.authMiddleware);
 exports.taskRouter.get('/', (req, res) => {
-    const { status, ownerId, reviewerId, priority, search, projectId, workspaceId, category, overdueOnly, myTasksOnly, sortBy, sortOrder } = req.query;
+    const { status, ownerId, reviewerId, priority, search, projectId, workspaceId, teamId, category, overdueOnly, myTasksOnly, sortBy, sortOrder } = req.query;
     // By default scope to user's active workspace, or allow explicit override if authorized
     const effectiveWorkspaceId = workspaceId || req.user?.workspace_id || 'ws_cindermarch';
     const tasks = (0, taskService_js_1.getTasks)({
@@ -21,6 +21,7 @@ exports.taskRouter.get('/', (req, res) => {
         search: search,
         projectId: projectId,
         workspaceId: effectiveWorkspaceId,
+        teamId: teamId,
         category: category,
         overdueOnly: overdueOnly === 'true',
         myTasksUserId: myTasksOnly === 'true' ? req.user?.id : undefined,
@@ -51,6 +52,7 @@ const createTaskSchema = zod_1.z.object({
     description: zod_1.z.string().min(5, 'Description must be at least 5 characters'),
     projectId: zod_1.z.string().optional(),
     workspaceId: zod_1.z.string().optional(),
+    teamId: zod_1.z.string().nullable().optional(),
     category: zod_1.z.string().optional(),
     estimatedEffort: zod_1.z.string().optional(),
     actualEffort: zod_1.z.string().optional(),

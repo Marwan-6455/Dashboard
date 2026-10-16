@@ -6,9 +6,10 @@ const auth_js_1 = require("../middleware/auth.js");
 const statsService_js_1 = require("../services/statsService.js");
 exports.statsRouter = (0, express_1.Router)();
 exports.statsRouter.use(auth_js_1.authMiddleware);
-exports.statsRouter.get('/overview', async (_req, res) => {
+exports.statsRouter.get('/overview', async (req, res) => {
     try {
-        const overview = await (0, statsService_js_1.getDashboardOverview)();
+        const workspaceId = req.user?.workspace_id || 'ws_cindermarch';
+        const overview = await (0, statsService_js_1.getDashboardOverview)(workspaceId);
         res.json(overview);
     }
     catch (err) {

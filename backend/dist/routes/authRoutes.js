@@ -53,8 +53,16 @@ exports.authRouter.post('/login', (0, rateLimiter_js_1.authRateLimiter)(10, 6000
     }
     const { username, password } = parseResult.data;
     const db = (0, connection_js_1.getDb)();
-    const stmt = db.prepare('SELECT * FROM users WHERE username = ? OR email = ?');
-    const user = stmt.get(username, username);
+    const trimmed = username.trim();
+    const stmt = db.prepare(`
+    SELECT * FROM users 
+    WHERE LOWER(username) = LOWER(?) 
+       OR LOWER(email) = LOWER(?) 
+       OR (id = 'usr_lead' AND LOWER(?) IN ('marwan', 'marwan hossam', 'marwan_hossam', 'lead', 'engine lead'))
+       OR (id = 'usr_joe' AND LOWER(?) IN ('joe', 'joe dev'))
+       OR (id = 'usr_yehia' AND LOWER(?) IN ('yehia', 'yehia dev'))
+  `);
+    const user = stmt.get(trimmed, trimmed, trimmed, trimmed, trimmed);
     if (!user) {
         res.status(401).json({ error: 'Invalid username or password.' });
         return;
@@ -431,5 +439,51 @@ exports.authRouter.get('/invitations/verify/:token', (req, res) => {
         workspaceName: inv.workspace_name,
         invitedByName: inv.invited_by_name || 'Team Lead',
         expiresAt: inv.expires_at
+    });
+});
+// POST /api/auth/invitations/accept (for authenticated users joining a workspace)
+exports.authRouter.post('/invitations/accept', auth_js_1.authMiddleware, (req, res) => {
+    if (!req.user) {
+        res.status(401).json({ error: 'Not authenticated.' });
+        return;
+    }
+    const { invitationToken } = req.body;
+    if (!invitationToken || typeof invitationToken !== 'string') {
+        res.status(400).json({ error: 'invitationToken is required.' });
+        return;
+    }
+    const db = (0, connection_js_1.getDb)();
+    const stmt = db.prepare(`
+    SELECT * FROM workspace_invitations 
+    WHERE invitation_token = ? AND status = 'pending'
+  `);
+    const inv = stmt.get(invitationToken.trim());
+    if (!inv) {
+        res.status(400).json({ error: 'Invalid or expired invitation token.' });
+        return;
+    }
+    if (new Date(inv.expires_at).getTime() < Date.now()) {
+        db.prepare("UPDATE workspace_invitations SET status = 'expired' WHERE id = ?").run(inv.id);
+        res.status(400).json({ error: 'This invitation token has expired.' });
+        return;
+    }
+    const now = new Date().toISOString();
+    // Add to workspace_members
+    db.prepare(`
+    INSERT INTO workspace_members (id, workspace_id, user_id, role, joined_at)
+    VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(workspace_id, user_id) DO UPDATE SET role = excluded.role
+  `).run(`wm_${Date.now()}_${(0, uuid_1.v4)().slice(0, 8)}`, inv.workspace_id, req.user.id, inv.role, now);
+    // Mark invitation accepted
+    db.prepare("UPDATE workspace_invitations SET status = 'accepted' WHERE id = ?").run(inv.id);
+    // Update user active workspace
+    db.prepare('UPDATE users SET workspace_id = ?, updated_at = ? WHERE id = ?').run(inv.workspace_id, now, req.user.id);
+    const workspaces = getUserWorkspaces(req.user.id, db);
+    const activeWorkspace = workspaces.find((w) => w.id === inv.workspace_id) || null;
+    res.json({
+        success: true,
+        message: 'Successfully joined workspace.',
+        activeWorkspace,
+        workspaces
     });
 });

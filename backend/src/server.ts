@@ -1,3 +1,7 @@
+try {
+  (process as any).loadEnvFile?.();
+} catch {}
+
 import { app } from './app.js';
 import { getDb } from './db/connection.js';
 import { runMigrations } from './db/migrations.js';

@@ -51,6 +51,16 @@ if (!CONFIG.BOT_TOKEN || CONFIG.BOT_TOKEN.trim().length === 0) {
   client.on(Events.InteractionCreate, async (interaction) => {
     if (!interaction.isChatInputCommand()) return;
 
+    // Enforce private guild allowlist
+    if (CONFIG.GUILD_ID && interaction.guildId && interaction.guildId !== CONFIG.GUILD_ID) {
+      console.warn(`[Bot] Rejected unauthorized interaction from foreign guild: ${interaction.guildId}`);
+      await interaction.reply({
+        content: `⛔ **Access Denied**: The Cindermarch Operations Bot is private to Cindermarch Studio (Authorized Guild ID: \`${CONFIG.GUILD_ID}\`). Interactions from this server are strictly prohibited.`,
+        ephemeral: true
+      }).catch(() => {});
+      return;
+    }
+
     const command = commandMap.get(interaction.commandName);
     if (!command) {
       console.warn(`[Bot] Received unknown command: /${interaction.commandName}`);

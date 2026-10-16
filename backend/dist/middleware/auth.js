@@ -18,10 +18,26 @@ function createSession(userId) {
     const csrfToken = node_crypto_1.default.randomBytes(32).toString('hex');
     const expiresAt = Date.now() + 7 * 24 * 60 * 60 * 1000; // 7 days
     activeSessions.set(sessionToken, { userId, expiresAt });
+    try {
+        const db = (0, connection_js_1.getDb)();
+        db.prepare(`
+      INSERT INTO user_sessions (token, user_id, csrf_token, created_at, expires_at)
+      VALUES (?, ?, ?, datetime('now'), ?)
+      ON CONFLICT(token) DO UPDATE SET expires_at = excluded.expires_at
+    `).run(sessionToken, userId, csrfToken, expiresAt);
+    }
+    catch {
+        // Fall back to memory session if table does not exist
+    }
     return { sessionToken, csrfToken };
 }
 function destroySession(sessionToken) {
     activeSessions.delete(sessionToken);
+    try {
+        const db = (0, connection_js_1.getDb)();
+        db.prepare('DELETE FROM user_sessions WHERE token = ?').run(sessionToken);
+    }
+    catch { }
 }
 function authMiddleware(req, res, next) {
     const sessionToken = req.cookies?.cm_session || req.headers['x-session-token'];
@@ -29,10 +45,27 @@ function authMiddleware(req, res, next) {
         res.status(401).json({ error: 'Authentication required. Please log in.' });
         return;
     }
-    const session = activeSessions.get(sessionToken);
+    let session = activeSessions.get(sessionToken);
+    if (!session) {
+        try {
+            const db = (0, connection_js_1.getDb)();
+            const row = db.prepare('SELECT user_id, expires_at FROM user_sessions WHERE token = ?').get(sessionToken);
+            if (row) {
+                session = { userId: row.user_id, expiresAt: Number(row.expires_at) };
+                activeSessions.set(sessionToken, session);
+            }
+        }
+        catch { }
+    }
     if (!session || session.expiresAt < Date.now()) {
-        if (session)
+        if (session) {
             activeSessions.delete(sessionToken);
+            try {
+                const db = (0, connection_js_1.getDb)();
+                db.prepare('DELETE FROM user_sessions WHERE token = ?').run(sessionToken);
+            }
+            catch { }
+        }
         res.status(401).json({ error: 'Session expired or invalid. Please log in again.' });
         return;
     }
@@ -41,6 +74,10 @@ function authMiddleware(req, res, next) {
     const user = stmt.get(session.userId);
     if (!user) {
         activeSessions.delete(sessionToken);
+        try {
+            db.prepare('DELETE FROM user_sessions WHERE token = ?').run(sessionToken);
+        }
+        catch { }
         res.status(401).json({ error: 'User not found.' });
         return;
     }

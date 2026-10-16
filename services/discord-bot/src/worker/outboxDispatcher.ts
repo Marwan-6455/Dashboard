@@ -24,7 +24,17 @@ export async function processOutboxQueue(client: Client) {
       // Determine target channel ID from guild config
       let targetChannelId: string | null = null;
       if (guildConfig) {
-        if (event.target_channel_type === 'qa') {
+        if (event.target_channel_type === 'story') {
+          targetChannelId = guildConfig.story_channel_id || guildConfig.announcements_channel_id;
+        } else if (event.target_channel_type === 'coding') {
+          targetChannelId = guildConfig.coding_channel_id || guildConfig.announcements_channel_id;
+        } else if (event.target_channel_type === 'marketing') {
+          targetChannelId = guildConfig.marketing_channel_id || guildConfig.announcements_channel_id;
+        } else if (event.target_channel_type === 'artists' || event.target_channel_type === '3d-artists') {
+          targetChannelId = guildConfig.artists_channel_id || guildConfig.announcements_channel_id;
+        } else if (event.target_channel_type === 'sound') {
+          targetChannelId = guildConfig.sound_channel_id || guildConfig.announcements_channel_id;
+        } else if (event.target_channel_type === 'qa') {
           targetChannelId = guildConfig.qa_channel_id || guildConfig.engine_channel_id || guildConfig.announcements_channel_id;
         } else if (event.target_channel_type === 'escalation') {
           targetChannelId = guildConfig.escalation_channel_id || guildConfig.engine_channel_id || guildConfig.announcements_channel_id;

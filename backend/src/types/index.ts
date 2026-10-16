@@ -87,10 +87,33 @@ export interface Task {
   is_test_exempt: number;
   test_exemption_reason: string | null;
   test_exempt_approved_by: string | null;
+  team_id?: string | null;
   completed_at: string | null;
   created_at: string;
   updated_at: string;
 }
+
+export interface Team {
+  id: string;
+  workspace_id: string;
+  name: string;
+  slug: string;
+  description: string;
+  manager_id?: string | null;
+  project_id?: string | null;
+  discord_channel_id?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TeamMember {
+  id: string;
+  team_id: string;
+  user_id: string;
+  role: 'manager' | 'member';
+  joined_at: string;
+}
+
 
 export interface TaskAcceptanceCriterion {
   id: string;

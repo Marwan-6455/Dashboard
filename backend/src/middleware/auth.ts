@@ -20,24 +20,57 @@ export function createSession(userId: string): { sessionToken: string; csrfToken
   const expiresAt = Date.now() + 7 * 24 * 60 * 60 * 1000; // 7 days
 
   activeSessions.set(sessionToken, { userId, expiresAt });
+  try {
+    const db = getDb();
+    db.prepare(`
+      INSERT INTO user_sessions (token, user_id, csrf_token, created_at, expires_at)
+      VALUES (?, ?, ?, datetime('now'), ?)
+      ON CONFLICT(token) DO UPDATE SET expires_at = excluded.expires_at
+    `).run(sessionToken, userId, csrfToken, expiresAt);
+  } catch {
+    // Fall back to memory session if table does not exist
+  }
   return { sessionToken, csrfToken };
 }
 
 export function destroySession(sessionToken: string): void {
   activeSessions.delete(sessionToken);
+  try {
+    const db = getDb();
+    db.prepare('DELETE FROM user_sessions WHERE token = ?').run(sessionToken);
+  } catch {}
 }
 
 export function authMiddleware(req: AuthenticatedRequest, res: Response, next: NextFunction): void {
-  const sessionToken = req.cookies?.cm_session || req.headers['x-session-token'];
+  const authHeader = req.headers['authorization'];
+  const bearerToken = typeof authHeader === 'string' && authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : undefined;
+  const sessionToken = req.cookies?.cm_session || req.headers['x-session-token'] || bearerToken;
 
   if (!sessionToken || typeof sessionToken !== 'string') {
     res.status(401).json({ error: 'Authentication required. Please log in.' });
     return;
   }
 
-  const session = activeSessions.get(sessionToken);
+  let session = activeSessions.get(sessionToken);
+  if (!session) {
+    try {
+      const db = getDb();
+      const row = db.prepare('SELECT user_id, expires_at FROM user_sessions WHERE token = ?').get(sessionToken) as { user_id: string; expires_at: number } | undefined;
+      if (row) {
+        session = { userId: row.user_id, expiresAt: Number(row.expires_at) };
+        activeSessions.set(sessionToken, session);
+      }
+    } catch {}
+  }
+
   if (!session || session.expiresAt < Date.now()) {
-    if (session) activeSessions.delete(sessionToken);
+    if (session) {
+      activeSessions.delete(sessionToken);
+      try {
+        const db = getDb();
+        db.prepare('DELETE FROM user_sessions WHERE token = ?').run(sessionToken);
+      } catch {}
+    }
     res.status(401).json({ error: 'Session expired or invalid. Please log in again.' });
     return;
   }
@@ -48,6 +81,9 @@ export function authMiddleware(req: AuthenticatedRequest, res: Response, next: N
 
   if (!user) {
     activeSessions.delete(sessionToken);
+    try {
+      db.prepare('DELETE FROM user_sessions WHERE token = ?').run(sessionToken);
+    } catch {}
     res.status(401).json({ error: 'User not found.' });
     return;
   }
@@ -63,8 +99,8 @@ export function authMiddleware(req: AuthenticatedRequest, res: Response, next: N
       const csrfHeader = req.headers['x-csrf-token'];
       const csrfCookie = req.cookies?.cm_csrf;
 
-      // Allow if valid csrf token provided in header or cookie match
-      if (!csrfHeader && !csrfCookie && !req.headers['x-session-token']) {
+      // Allow if valid csrf token provided in header or cookie match or token-based auth
+      if (!csrfHeader && !csrfCookie && !req.headers['x-session-token'] && !bearerToken) {
         // If neither is present and it's a browser session, verify csrf
         res.status(403).json({ error: 'Invalid or missing CSRF token.' });
         return;

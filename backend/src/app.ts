@@ -43,6 +43,7 @@ app.use('/api/reviews', reviewRouter);
 app.use('/api/evidence', evidenceRouter);
 app.use('/api/test-reports', testReportRouter);
 app.use('/api/team', teamRouter);
+app.use('/api/teams', teamRouter);
 app.use('/api/activity', activityRouter);
 app.use('/api/stats', statsRouter);
 app.use('/api/integrations', integrationRouter);

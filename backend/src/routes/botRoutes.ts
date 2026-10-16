@@ -196,11 +196,12 @@ botRouter.get('/tasks/team-tasks', (req: Request, res: Response): void => {
     return;
   }
 
-  const { status, priority, category, projectId, search } = req.query;
+  const { status, priority, category, teamId, team, projectId, search } = req.query;
   const tasks = getTasks({
     status: status as string,
     priority: priority as string,
     category: category as string,
+    teamId: (teamId || team) as string,
     projectId: projectId as string,
     search: search as string,
     sortBy: 'updated_at',
@@ -240,6 +241,8 @@ botRouter.post('/tasks', (req: Request, res: Response): void => {
     description,
     priority,
     category,
+    teamId,
+    team,
     deadline,
     ownerUsernameOrId,
     reviewerUsernameOrId,
@@ -272,6 +275,14 @@ botRouter.post('/tasks', (req: Request, res: Response): void => {
     if (revRow) reviewerId = revRow.id;
   }
 
+  let resolvedTeamId: string | null = null;
+  const targetTeam = teamId || team;
+  if (targetTeam) {
+    const teamRow = db.prepare('SELECT id FROM teams WHERE id = ? OR slug = ? OR name = ? COLLATE NOCASE')
+      .get(targetTeam, targetTeam, targetTeam) as { id: string } | undefined;
+    if (teamRow) resolvedTeamId = teamRow.id;
+  }
+
   try {
     const task = createTask(
       {
@@ -279,6 +290,7 @@ botRouter.post('/tasks', (req: Request, res: Response): void => {
         description,
         priority: (priority as Priority) || 'P1',
         category: category || 'Gameplay',
+        teamId: resolvedTeamId,
         deadline: deadline || null,
         ownerId,
         reviewerId,
@@ -630,6 +642,7 @@ botRouter.get('/team', (req: Request, res: Response): void => {
       (SELECT COUNT(*) FROM reviews WHERE reviewer_id = u.id AND decision = 'Pending') as pending_reviews_count
     FROM users u
     LEFT JOIN discord_account_links dal ON u.id = dal.user_id
+    WHERE u.id != 'usr_cindermarch_assistant'
     ORDER BY u.display_name ASC
   `).all();
 

@@ -1,0 +1,33 @@
+# Environment variables and secrets
+.env
+.env.local
+.env.*.local
+*.env
+
+# Dependencies
+node_modules/
+package-lock.json
+
+# Build outputs
+dist/
+build/
+*.tsbuildinfo
+
+# SQLite databases & backups (keep schema scripts, ignore runtime db files)
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+backend/data/*.db*
+backend/data/tasks_backup.json
+
+# Uploads & local artifacts
+uploads/
+backend/uploads/
+*.log
+npm-debug.log*
+
+# Test screenshots and scratch
+test_screenshots/
+.tempmediaStorage/
+.system_generated/

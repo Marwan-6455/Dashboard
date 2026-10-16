@@ -24,6 +24,8 @@ interface TasksPageProps {
   onNavigateToTask: (taskId: string) => void;
   onOpenNewTaskModal: () => void;
   initialFilterStatus?: string;
+  initialFilterTeam?: string;
+  initialFilterOwner?: string;
   teamUsers?: any[];
 }
 
@@ -52,13 +54,16 @@ export const TasksPage: React.FC<TasksPageProps> = ({
   onNavigateToTask,
   onOpenNewTaskModal,
   initialFilterStatus,
+  initialFilterTeam,
+  initialFilterOwner,
   teamUsers = []
 }) => {
   const { user } = useAuth();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
   const [statusFilter, setStatusFilter] = useState<string>(initialFilterStatus || '');
-  const [ownerFilter, setOwnerFilter] = useState<string>('');
+  const [teamFilter, setTeamFilter] = useState<string>(initialFilterTeam || '');
+  const [ownerFilter, setOwnerFilter] = useState<string>(initialFilterOwner || '');
   const [categoryFilter, setCategoryFilter] = useState<string>('');
   const [priorityFilter, setPriorityFilter] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -75,6 +80,7 @@ export const TasksPage: React.FC<TasksPageProps> = ({
       setIsLoading(true);
       const query = new URLSearchParams();
       if (statusFilter) query.set('status', statusFilter);
+      if (teamFilter) query.set('teamId', teamFilter);
       if (ownerFilter) query.set('ownerId', ownerFilter);
       if (categoryFilter) query.set('category', categoryFilter);
       if (priorityFilter) query.set('priority', priorityFilter);
@@ -93,8 +99,20 @@ export const TasksPage: React.FC<TasksPageProps> = ({
   };
 
   useEffect(() => {
+    if (initialFilterStatus !== undefined) setStatusFilter(initialFilterStatus);
+  }, [initialFilterStatus]);
+
+  useEffect(() => {
+    if (initialFilterTeam !== undefined) setTeamFilter(initialFilterTeam);
+  }, [initialFilterTeam]);
+
+  useEffect(() => {
+    if (initialFilterOwner !== undefined) setOwnerFilter(initialFilterOwner);
+  }, [initialFilterOwner]);
+
+  useEffect(() => {
     fetchTasks();
-  }, [statusFilter, ownerFilter, categoryFilter, priorityFilter, searchQuery, myTasksOnly, overdueOnly]);
+  }, [statusFilter, teamFilter, ownerFilter, categoryFilter, priorityFilter, searchQuery, myTasksOnly, overdueOnly]);
 
   const handleQuickStatusChange = async (taskId: string, newStatus: TaskStatus) => {
     try {
@@ -212,6 +230,21 @@ export const TasksPage: React.FC<TasksPageProps> = ({
 
         <select
           className="form-control"
+          style={{ width: 'auto', minWidth: '150px' }}
+          value={teamFilter}
+          onChange={(e) => setTeamFilter(e.target.value)}
+        >
+          <option value="">All Teams (6 Teams)</option>
+          <option value="team_story">Story Team</option>
+          <option value="team_coding">Coding Team</option>
+          <option value="team_marketing">Marketing Team</option>
+          <option value="team_engine">Engine Team</option>
+          <option value="team_3d_artists">3D Artists</option>
+          <option value="team_sound">Sound Team</option>
+        </select>
+
+        <select
+          className="form-control"
           style={{ width: 'auto', minWidth: '140px' }}
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
@@ -250,11 +283,12 @@ export const TasksPage: React.FC<TasksPageProps> = ({
           <option value="P2">P2 (Normal)</option>
         </select>
 
-        {(statusFilter || ownerFilter || categoryFilter || priorityFilter || searchQuery || myTasksOnly || overdueOnly) && (
+        {(statusFilter || teamFilter || ownerFilter || categoryFilter || priorityFilter || searchQuery || myTasksOnly || overdueOnly) && (
           <button
             className="btn btn-secondary btn-sm"
             onClick={() => {
               setStatusFilter('');
+              setTeamFilter('');
               setOwnerFilter('');
               setCategoryFilter('');
               setPriorityFilter('');
@@ -279,6 +313,7 @@ export const TasksPage: React.FC<TasksPageProps> = ({
                 <th style={{ width: '110px' }}>Task ID</th>
                 <th>Title & Context</th>
                 <th style={{ width: '110px' }}>Category</th>
+                <th style={{ width: '120px' }}>Team</th>
                 <th style={{ width: '80px' }}>Priority</th>
                 <th style={{ width: '150px' }}>Status</th>
                 <th style={{ width: '140px' }}>Owner</th>
@@ -292,9 +327,42 @@ export const TasksPage: React.FC<TasksPageProps> = ({
             <tbody>
               {tasks.length === 0 ? (
                 <tr>
-                  <td colSpan={11} style={{ textAlign: 'center', padding: '40px' }}>
-                    <div style={{ color: 'var(--text-secondary)' }}>
-                      No tasks matched your filter criteria.
+                  <td colSpan={12} style={{ textAlign: 'center', padding: '60px 20px' }}>
+                    <div style={{ maxWidth: '420px', margin: '0 auto' }}>
+                      <div
+                        style={{
+                          width: '52px',
+                          height: '52px',
+                          borderRadius: '50%',
+                          backgroundColor: 'rgba(255, 106, 0, 0.1)',
+                          color: 'var(--accent-orange)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          margin: '0 auto 16px'
+                        }}
+                      >
+                        <Plus size={26} />
+                      </div>
+                      <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-white)', marginBottom: '8px' }}>
+                        {statusFilter || ownerFilter || teamFilter || categoryFilter || priorityFilter || searchQuery || myTasksOnly || overdueOnly
+                          ? 'No Tasks Match Filter Criteria'
+                          : 'Task Board is Clean & Ready'}
+                      </h3>
+                      <p style={{ color: 'var(--text-secondary)', fontSize: '13px', lineHeight: 1.5, marginBottom: '20px' }}>
+                        {statusFilter || ownerFilter || teamFilter || categoryFilter || priorityFilter || searchQuery || myTasksOnly || overdueOnly
+                          ? 'Try resetting your active filters to view all studio tasks.'
+                          : 'No demo tasks exist. Create your first real development task for Terminal 6 to begin tracking work.'}
+                      </p>
+                      <button
+                        type="button"
+                        className="btn btn-primary"
+                        style={{ margin: '0 auto' }}
+                        onClick={onOpenNewTaskModal}
+                      >
+                        <Plus size={16} />
+                        <span>Create Task</span>
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -360,6 +428,22 @@ export const TasksPage: React.FC<TasksPageProps> = ({
                           }}
                         >
                           {task.category || 'Gameplay'}
+                        </span>
+                      </td>
+                      <td>
+                        <span
+                          style={{
+                            fontSize: '11px',
+                            fontWeight: 500,
+                            color: 'var(--text-white)',
+                            backgroundColor: 'var(--bg-elevated)',
+                            padding: '3px 8px',
+                            borderRadius: '4px',
+                            border: '1px solid var(--border-subtle)',
+                            whiteSpace: 'nowrap'
+                          }}
+                        >
+                          {(task as any).team_name || 'Studio'}
                         </span>
                       </td>
                       <td>

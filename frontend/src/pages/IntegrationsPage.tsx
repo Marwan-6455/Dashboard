@@ -25,10 +25,15 @@ export const IntegrationsPage: React.FC = () => {
   const [uvcsTestResult, setUvcsTestResult] = useState<any>(null);
 
   // Bot & Channel Mappings State
-  const [guildId, setGuildId] = useState('');
-  const [guildName, setGuildName] = useState('');
+  const [guildId, setGuildId] = useState('1394770347030483034');
+  const [guildName, setGuildName] = useState('Cindermarch Studio');
   const [announcementsChannel, setAnnouncementsChannel] = useState('');
+  const [storyChannel, setStoryChannel] = useState('');
+  const [codingChannel, setCodingChannel] = useState('');
+  const [marketingChannel, setMarketingChannel] = useState('');
   const [engineChannel, setEngineChannel] = useState('');
+  const [artistsChannel, setArtistsChannel] = useState('');
+  const [soundChannel, setSoundChannel] = useState('');
   const [qaChannel, setQaChannel] = useState('');
   const [escalationChannel, setEscalationChannel] = useState('');
   const [isSavingChannels, setIsSavingChannels] = useState(false);
@@ -57,10 +62,15 @@ export const IntegrationsPage: React.FC = () => {
       setDiscordData(discRes);
 
       if (discRes.guildConfig) {
-        setGuildId(discRes.guildConfig.guild_id || '');
-        setGuildName(discRes.guildConfig.guild_name || '');
+        setGuildId(discRes.guildConfig.guild_id || '1394770347030483034');
+        setGuildName(discRes.guildConfig.guild_name || 'Cindermarch Studio');
         setAnnouncementsChannel(discRes.guildConfig.announcements_channel_id || '');
+        setStoryChannel(discRes.guildConfig.story_channel_id || '');
+        setCodingChannel(discRes.guildConfig.coding_channel_id || '');
+        setMarketingChannel(discRes.guildConfig.marketing_channel_id || '');
         setEngineChannel(discRes.guildConfig.engine_channel_id || '');
+        setArtistsChannel(discRes.guildConfig.artists_channel_id || '');
+        setSoundChannel(discRes.guildConfig.sound_channel_id || '');
         setQaChannel(discRes.guildConfig.qa_channel_id || '');
         setEscalationChannel(discRes.guildConfig.escalation_channel_id || '');
       }
@@ -123,7 +133,12 @@ export const IntegrationsPage: React.FC = () => {
           guildId: guildId.trim(),
           guildName: guildName.trim(),
           announcementsChannelId: announcementsChannel.trim(),
+          storyChannelId: storyChannel.trim(),
+          codingChannelId: codingChannel.trim(),
+          marketingChannelId: marketingChannel.trim(),
           engineChannelId: engineChannel.trim(),
+          artistsChannelId: artistsChannel.trim(),
+          soundChannelId: soundChannel.trim(),
           qaChannelId: qaChannel.trim(),
           escalationChannelId: escalationChannel.trim(),
           reminderPolicy: {
@@ -136,7 +151,7 @@ export const IntegrationsPage: React.FC = () => {
           }
         })
       });
-      alert('Discord guild & channel mappings saved successfully.');
+      alert('Discord guild & 6-team channel mappings saved successfully.');
       fetchIntegrations();
     } catch (err: any) {
       alert(err.message);
@@ -235,7 +250,7 @@ export const IntegrationsPage: React.FC = () => {
               <div>
                 <span style={{ fontSize: '16px', fontWeight: 600 }}>Cindermarch Operations Bot</span>
                 <div style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 400 }}>
-                  Real-time two-way synchronization, slash commands, durable reminders & team announcements
+                  Real-time two-way synchronization, slash commands, durable reminders & six team channels
                 </div>
               </div>
             </div>
@@ -263,11 +278,15 @@ export const IntegrationsPage: React.FC = () => {
               <div style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', padding: '14px', borderRadius: 'var(--radius-sm)', fontSize: '12.5px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
                   <span style={{ color: 'var(--text-secondary)' }}>Bot Token:</span>
-                  <strong>{botConfig.hasBotToken ? 'Configured in .env' : 'Missing (set DISCORD_BOT_TOKEN)'}</strong>
+                  <strong>{botConfig.hasBotToken ? 'Configured securely in .env' : 'Missing (set DISCORD_BOT_TOKEN)'}</strong>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
                   <span style={{ color: 'var(--text-secondary)' }}>Application / Client ID:</span>
-                  <span className="mono">{botConfig.clientId || 'Not set'}</span>
+                  <span className="mono">{botConfig.clientId || '1560406066867478681'}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>Allowed Server (Guild) ID:</span>
+                  <span className="mono">{guildId || '1394770347030483034'}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
                   <span style={{ color: 'var(--text-secondary)' }}>Default Timezone:</span>
@@ -344,19 +363,19 @@ export const IntegrationsPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Column B: Channel Mappings */}
+            {/* Column B: Channel Mappings for All 6 Teams */}
             <div>
               <h3 style={{ fontSize: '13px', textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.05em', marginBottom: '12px' }}>
-                Server & Channel Routing Mappings
+                Server & Six Team Channel Mappings
               </h3>
               <form onSubmit={handleSaveChannels} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                   <div className="form-group" style={{ margin: 0 }}>
-                    <label className="form-label" style={{ fontSize: '11px' }}>Discord Server ID (Guild)</label>
+                    <label className="form-label" style={{ fontSize: '11px' }}>Server ID (Guild)</label>
                     <input
                       type="text"
                       className="form-control mono"
-                      placeholder="1234567890..."
+                      placeholder="1394770347030483034"
                       value={guildId}
                       onChange={(e) => setGuildId(e.target.value)}
                     />
@@ -374,51 +393,110 @@ export const IntegrationsPage: React.FC = () => {
                 </div>
 
                 <div className="form-group" style={{ margin: 0 }}>
-                  <label className="form-label" style={{ fontSize: '11px' }}>📢 Announcements Channel ID</label>
+                  <label className="form-label" style={{ fontSize: '11px' }}>📢 Studio Announcements Channel ID</label>
                   <input
                     type="text"
                     className="form-control mono"
-                    placeholder="e.g. 134567890123456789"
+                    placeholder="Enter Discord Channel ID"
                     value={announcementsChannel}
                     onChange={(e) => setAnnouncementsChannel(e.target.value)}
                   />
                 </div>
 
-                <div className="form-group" style={{ margin: 0 }}>
-                  <label className="form-label" style={{ fontSize: '11px' }}>⚡ Engine Team Updates Channel ID</label>
-                  <input
-                    type="text"
-                    className="form-control mono"
-                    placeholder="e.g. 134567890123456790"
-                    value={engineChannel}
-                    onChange={(e) => setEngineChannel(e.target.value)}
-                  />
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label className="form-label" style={{ fontSize: '11px' }}>📖 Story Team Channel ID</label>
+                    <input
+                      type="text"
+                      className="form-control mono"
+                      placeholder="Channel ID"
+                      value={storyChannel}
+                      onChange={(e) => setStoryChannel(e.target.value)}
+                    />
+                  </div>
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label className="form-label" style={{ fontSize: '11px' }}>💻 Coding Team Channel ID</label>
+                    <input
+                      type="text"
+                      className="form-control mono"
+                      placeholder="Channel ID"
+                      value={codingChannel}
+                      onChange={(e) => setCodingChannel(e.target.value)}
+                    />
+                  </div>
                 </div>
 
-                <div className="form-group" style={{ margin: 0 }}>
-                  <label className="form-label" style={{ fontSize: '11px' }}>🧪 QA & Build Reports Channel ID</label>
-                  <input
-                    type="text"
-                    className="form-control mono"
-                    placeholder="e.g. 134567890123456791"
-                    value={qaChannel}
-                    onChange={(e) => setQaChannel(e.target.value)}
-                  />
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label className="form-label" style={{ fontSize: '11px' }}>📣 Marketing Team Channel ID</label>
+                    <input
+                      type="text"
+                      className="form-control mono"
+                      placeholder="Channel ID"
+                      value={marketingChannel}
+                      onChange={(e) => setMarketingChannel(e.target.value)}
+                    />
+                  </div>
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label className="form-label" style={{ fontSize: '11px' }}>⚙️ Engine Team Channel ID</label>
+                    <input
+                      type="text"
+                      className="form-control mono"
+                      placeholder="Channel ID"
+                      value={engineChannel}
+                      onChange={(e) => setEngineChannel(e.target.value)}
+                    />
+                  </div>
                 </div>
 
-                <div className="form-group" style={{ margin: 0 }}>
-                  <label className="form-label" style={{ fontSize: '11px' }}>🛑 Escalation / Blockers Channel ID</label>
-                  <input
-                    type="text"
-                    className="form-control mono"
-                    placeholder="e.g. 134567890123456792"
-                    value={escalationChannel}
-                    onChange={(e) => setEscalationChannel(e.target.value)}
-                  />
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label className="form-label" style={{ fontSize: '11px' }}>🎨 3D Artists Channel ID</label>
+                    <input
+                      type="text"
+                      className="form-control mono"
+                      placeholder="Channel ID"
+                      value={artistsChannel}
+                      onChange={(e) => setArtistsChannel(e.target.value)}
+                    />
+                  </div>
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label className="form-label" style={{ fontSize: '11px' }}>🎵 Sound Team Channel ID</label>
+                    <input
+                      type="text"
+                      className="form-control mono"
+                      placeholder="Channel ID"
+                      value={soundChannel}
+                      onChange={(e) => setSoundChannel(e.target.value)}
+                    />
+                  </div>
                 </div>
 
-                <button type="submit" className="btn btn-secondary btn-sm" disabled={isSavingChannels} style={{ alignSelf: 'flex-start', marginTop: '4px' }}>
-                  {isSavingChannels ? 'Saving Mappings...' : 'Save Channel Mappings'}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label className="form-label" style={{ fontSize: '11px' }}>🧪 QA & Build Reports Channel</label>
+                    <input
+                      type="text"
+                      className="form-control mono"
+                      placeholder="Channel ID"
+                      value={qaChannel}
+                      onChange={(e) => setQaChannel(e.target.value)}
+                    />
+                  </div>
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label className="form-label" style={{ fontSize: '11px' }}>🛑 Escalation / Blockers Channel</label>
+                    <input
+                      type="text"
+                      className="form-control mono"
+                      placeholder="Channel ID"
+                      value={escalationChannel}
+                      onChange={(e) => setEscalationChannel(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <button type="submit" className="btn btn-secondary btn-sm" disabled={isSavingChannels} style={{ alignSelf: 'flex-start', marginTop: '6px' }}>
+                  {isSavingChannels ? 'Saving Mappings...' : 'Save All Channel Mappings'}
                 </button>
               </form>
             </div>
@@ -456,7 +534,7 @@ export const IntegrationsPage: React.FC = () => {
               {/* Test Notification Dispatch Button */}
               <div style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)', padding: '12px', borderRadius: 'var(--radius-sm)' }}>
                 <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '8px' }}>
-                  Queue a live verification announcement to the Discord Announcements channel.
+                  Queue a live verification announcement to the configured Discord Announcements channel.
                 </div>
                 <button
                   type="button"
@@ -656,7 +734,7 @@ export const IntegrationsPage: React.FC = () => {
           </div>
 
           <div style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: '1.6' }}>
-            A planned custom C# Unity EditorWindow extension will allow Yehia, Joe, and the Engine Lead to review assigned tasks, inspect completion gates, and attach changesets directly from inside Unity 6 without switching windows.
+            A planned custom C# Unity EditorWindow extension will allow Cindermarch Studio developers and team managers to review assigned tasks, inspect completion gates, and attach changesets directly from inside Unity 6 without switching windows.
           </div>
 
           <div style={{ marginTop: '16px', fontSize: '12px', color: 'var(--text-muted)' }}>

@@ -1,5 +1,9 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+try {
+    process.loadEnvFile?.();
+}
+catch { }
 const app_js_1 = require("./app.js");
 const connection_js_1 = require("./db/connection.js");
 const migrations_js_1 = require("./db/migrations.js");

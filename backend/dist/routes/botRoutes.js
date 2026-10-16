@@ -147,11 +147,12 @@ exports.botRouter.get('/tasks/team-tasks', (req, res) => {
         res.status(403).json({ error: 'Not linked. Please run /link first to connect your account.' });
         return;
     }
-    const { status, priority, category, projectId, search } = req.query;
+    const { status, priority, category, teamId, team, projectId, search } = req.query;
     const tasks = (0, taskService_js_1.getTasks)({
         status: status,
         priority: priority,
         category: category,
+        teamId: (teamId || team),
         projectId: projectId,
         search: search,
         sortBy: 'updated_at',
@@ -180,7 +181,7 @@ exports.botRouter.get('/tasks/:taskId', (req, res) => {
 });
 // POST /api/bot/tasks (Create Task)
 exports.botRouter.post('/tasks', (req, res) => {
-    const { discordUserId, title, description, priority, category, deadline, ownerUsernameOrId, reviewerUsernameOrId, projectId } = req.body;
+    const { discordUserId, title, description, priority, category, teamId, team, deadline, ownerUsernameOrId, reviewerUsernameOrId, projectId } = req.body;
     const user = resolveUser(discordUserId);
     if (!user) {
         res.status(403).json({ error: 'You must link your account with /link before creating tasks.' });
@@ -205,12 +206,21 @@ exports.botRouter.post('/tasks', (req, res) => {
         if (revRow)
             reviewerId = revRow.id;
     }
+    let resolvedTeamId = null;
+    const targetTeam = teamId || team;
+    if (targetTeam) {
+        const teamRow = db.prepare('SELECT id FROM teams WHERE id = ? OR slug = ? OR name = ? COLLATE NOCASE')
+            .get(targetTeam, targetTeam, targetTeam);
+        if (teamRow)
+            resolvedTeamId = teamRow.id;
+    }
     try {
         const task = (0, taskService_js_1.createTask)({
             title,
             description,
             priority: priority || 'P1',
             category: category || 'Gameplay',
+            teamId: resolvedTeamId,
             deadline: deadline || null,
             ownerId,
             reviewerId,
@@ -514,6 +524,7 @@ exports.botRouter.get('/team', (req, res) => {
       (SELECT COUNT(*) FROM reviews WHERE reviewer_id = u.id AND decision = 'Pending') as pending_reviews_count
     FROM users u
     LEFT JOIN discord_account_links dal ON u.id = dal.user_id
+    WHERE u.id != 'usr_cindermarch_assistant'
     ORDER BY u.display_name ASC
   `).all();
     res.json({ members });

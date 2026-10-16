@@ -38,6 +38,20 @@ export const data = new SlashCommandBuilder()
   )
   .addStringOption((opt) =>
     opt
+      .setName('team')
+      .setDescription('Filter by studio team')
+      .setRequired(false)
+      .addChoices(
+        { name: 'Story Team', value: 'team_story' },
+        { name: 'Coding Team', value: 'team_coding' },
+        { name: 'Marketing Team', value: 'team_marketing' },
+        { name: 'Engine Team', value: 'team_engine' },
+        { name: '3D Artists', value: 'team_3d_artists' },
+        { name: 'Sound Team', value: 'team_sound' }
+      )
+  )
+  .addStringOption((opt) =>
+    opt
       .setName('search')
       .setDescription('Search query in title or description')
       .setRequired(false)
@@ -50,12 +64,14 @@ export async function execute(interaction: ChatInputCommandInteraction) {
     const status = interaction.options.getString('status') || undefined;
     const priority = interaction.options.getString('priority') || undefined;
     const category = interaction.options.getString('category') || undefined;
+    const team = interaction.options.getString('team') || undefined;
     const search = interaction.options.getString('search') || undefined;
 
     const data = await hubClient.getTeamTasks(interaction.user.id, {
       status,
       priority,
       category,
+      teamId: team,
       search
     });
 

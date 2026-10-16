@@ -202,4 +202,125 @@ function runMigrations(db) {
             console.error('Error applying migration 003:', err);
         }
     }
+    // Migration 004: Six Teams System for Cindermarch Studio
+    const m4 = stmt.get('004_six_teams_system');
+    if (!m4) {
+        try {
+            db.exec(`
+        CREATE TABLE IF NOT EXISTS teams (
+          id TEXT PRIMARY KEY,
+          workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+          name TEXT NOT NULL,
+          slug TEXT NOT NULL,
+          description TEXT NOT NULL,
+          manager_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+          project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
+          discord_channel_id TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          UNIQUE(workspace_id, slug)
+        );
+
+        CREATE TABLE IF NOT EXISTS team_members (
+          id TEXT PRIMARY KEY,
+          team_id TEXT NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+          user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          role TEXT NOT NULL CHECK(role IN ('manager', 'member')) DEFAULT 'member',
+          joined_at TEXT NOT NULL,
+          UNIQUE(team_id, user_id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_tm_team ON team_members(team_id);
+        CREATE INDEX IF NOT EXISTS idx_tm_user ON team_members(user_id);
+      `);
+            const addCol = (table, colDef) => {
+                try {
+                    db.exec(`ALTER TABLE ${table} ADD COLUMN ${colDef}`);
+                }
+                catch { }
+            };
+            addCol('tasks', 'team_id TEXT REFERENCES teams(id)');
+            addCol('discord_guild_configs', 'story_channel_id TEXT');
+            addCol('discord_guild_configs', 'coding_channel_id TEXT');
+            addCol('discord_guild_configs', 'marketing_channel_id TEXT');
+            addCol('discord_guild_configs', 'artists_channel_id TEXT');
+            addCol('discord_guild_configs', 'sound_channel_id TEXT');
+            const now = new Date().toISOString();
+            const sixTeams = [
+                {
+                    id: 'team_story',
+                    name: 'Story Team',
+                    slug: 'story',
+                    description: 'Narrative design, lore, dialogue, world-building, and script writing.'
+                },
+                {
+                    id: 'team_coding',
+                    name: 'Coding Team',
+                    slug: 'coding',
+                    description: 'Gameplay systems, AI logic, UI programming, and client gameplay architecture.'
+                },
+                {
+                    id: 'team_marketing',
+                    name: 'Marketing Team',
+                    slug: 'marketing',
+                    description: 'Community engagement, social media, trailers, press kits, and promotional campaigns.'
+                },
+                {
+                    id: 'team_engine',
+                    name: 'Engine Team',
+                    slug: 'engine',
+                    description: 'Core engine development, rendering pipeline, physics optimization, performance profiling, and toolchain.'
+                },
+                {
+                    id: 'team_3d_artists',
+                    name: '3D Artists',
+                    slug: '3d-artists',
+                    description: '3D character modeling, environment art, texturing, rigging, animation, and asset integration.'
+                },
+                {
+                    id: 'team_sound',
+                    name: 'Sound Team',
+                    slug: 'sound',
+                    description: 'Original score, sound effects (SFX), foley, voiceover mastering, and audio engine integration.'
+                }
+            ];
+            const wsCheck = db.prepare("SELECT id FROM workspaces WHERE id = 'ws_cindermarch'").get();
+            if (wsCheck) {
+                const prjCheck = db.prepare("SELECT id FROM projects WHERE id = 'terminal-6'").get();
+                const prjId = prjCheck ? 'terminal-6' : null;
+                const insertTeam = db.prepare(`
+          INSERT OR IGNORE INTO teams (id, workspace_id, name, slug, description, project_id, created_at, updated_at)
+          VALUES (?, 'ws_cindermarch', ?, ?, ?, ?, ?, ?)
+        `);
+                for (const t of sixTeams) {
+                    insertTeam.run(t.id, t.name, t.slug, t.description, prjId, now, now);
+                }
+            }
+            db.prepare('INSERT INTO _migrations (name, applied_at) VALUES (?, ?)').run('004_six_teams_system', new Date().toISOString());
+        }
+        catch (err) {
+            console.error('Error applying migration 004:', err);
+        }
+    }
+    // Migration 005: Persistent Sessions Table
+    const m5 = stmt.get('005_persistent_sessions_and_restore');
+    if (!m5) {
+        try {
+            db.exec(`
+        CREATE TABLE IF NOT EXISTS user_sessions (
+          token TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          csrf_token TEXT,
+          created_at TEXT NOT NULL,
+          expires_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_sessions_token ON user_sessions(token);
+        CREATE INDEX IF NOT EXISTS idx_sessions_user ON user_sessions(user_id);
+      `);
+            db.prepare('INSERT INTO _migrations (name, applied_at) VALUES (?, ?)').run('005_persistent_sessions_and_restore', new Date().toISOString());
+        }
+        catch (err) {
+            console.error('Error applying migration 005:', err);
+        }
+    }
 }

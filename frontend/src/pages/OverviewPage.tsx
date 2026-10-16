@@ -62,13 +62,14 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate, onOpenNe
   }
 
   const { metrics, workload, upcomingDeadlines, recentReviews, recentReports, recentActivity, integrations } = data;
+  const teamWorkloads = data.teamWorkloads || [];
 
   return (
     <div className="page-wrapper">
       <div className="page-header">
         <div className="page-title-group">
           <h1>Terminal 6 // Development Overview</h1>
-          <p>Real-time engineering hub status, verification gates, and developer workload.</p>
+          <p>Real-time engineering hub status, six studio teams, verification gates, and developer workload.</p>
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>
           <button className="btn btn-secondary" onClick={loadData}>
@@ -109,8 +110,18 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate, onOpenNe
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12.5px' }}>
-            <span style={{ color: 'var(--text-secondary)' }}>Discord Bot:</span>
-            <span className="badge badge-backlog">NOT CONFIGURED</span>
+            <span style={{ color: 'var(--text-secondary)' }}>Discord Operations Bot:</span>
+            <span
+              className={`badge ${
+                integrations.discord?.status === 'configured' || integrations.discord?.status === 'operational'
+                  ? 'badge-verified-complete'
+                  : 'badge-backlog'
+              }`}
+            >
+              {integrations.discord?.status === 'configured' || integrations.discord?.status === 'operational'
+                ? 'CONFIGURED (TOKEN READY)'
+                : 'NOT CONFIGURED'}
+            </span>
           </div>
         </div>
 
@@ -176,6 +187,56 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate, onOpenNe
         </div>
       </div>
 
+      {/* Six Studio Teams Workload & Status Cards */}
+      <div className="card" style={{ marginBottom: '24px' }}>
+        <div className="card-header">
+          <div className="card-title">
+            <CheckSquare size={16} color="var(--accent-orange)" />
+            <span>Studio Departments // Six Dedicated Teams</span>
+          </div>
+          <button className="btn btn-secondary btn-sm" onClick={() => onNavigate('team')}>
+            Team Directory & Dashboards
+          </button>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '14px' }}>
+          {teamWorkloads.map((team: any) => (
+            <div
+              key={team.id}
+              style={{
+                padding: '14px',
+                backgroundColor: 'var(--bg-elevated)',
+                border: '1px solid var(--border-subtle)',
+                borderRadius: 'var(--radius-sm)',
+                cursor: 'pointer',
+                transition: 'border-color 0.15s ease'
+              }}
+              onClick={() => onNavigate('tasks', { filterTeam: team.id })}
+              onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.borderColor = 'var(--accent-orange)')}
+              onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.borderColor = 'var(--border-subtle)')}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                <strong style={{ fontSize: '14px', color: 'var(--text-white)' }}>{team.name}</strong>
+                <span className="badge badge-backlog" style={{ fontSize: '10.5px' }}>
+                  {team.memberCount} members
+                </span>
+              </div>
+              <div style={{ fontSize: '11.5px', color: 'var(--text-secondary)', marginBottom: '10px', minHeight: '30px', lineHeight: '1.4' }}>
+                {team.description}
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11.5px', color: 'var(--text-muted)' }}>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <span>Active: <strong style={{ color: 'var(--accent-orange)' }}>{team.activeTasks}</strong></span>
+                  <span>Overdue: <strong style={{ color: team.overdueTasks > 0 ? 'var(--status-blocked)' : 'var(--text-secondary)' }}>{team.overdueTasks}</strong></span>
+                  <span>Done: <strong style={{ color: 'var(--status-complete)' }}>{team.completedTasks}</strong></span>
+                </div>
+                <ArrowRight size={12} color="var(--text-muted)" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
       {/* Main Grid: 2 Columns */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '24px' }}>
         {/* Left Column */}
@@ -195,35 +256,41 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate, onOpenNe
               </button>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {workload.map((w: any) => (
-                <div
-                  key={w.id}
-                  style={{
-                    backgroundColor: 'var(--bg-elevated)',
-                    border: '1px solid var(--border-subtle)',
-                    borderRadius: 'var(--radius-sm)',
-                    padding: '12px 14px'
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                    <div style={{ fontWeight: 600, fontSize: '13.5px', color: 'var(--text-white)' }}>
-                      {w.display_name} <span style={{ color: 'var(--text-muted)', fontSize: '11px', fontFamily: 'var(--font-mono)' }}>({w.username})</span>
+            {workload.length === 0 ? (
+              <div className="empty-state" style={{ padding: '24px 0' }}>
+                <p>No active developers assigned to tasks.</p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {workload.map((w: any) => (
+                  <div
+                    key={w.id}
+                    style={{
+                      backgroundColor: 'var(--bg-elevated)',
+                      border: '1px solid var(--border-subtle)',
+                      borderRadius: 'var(--radius-sm)',
+                      padding: '12px 14px'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                      <div style={{ fontWeight: 600, fontSize: '13.5px', color: 'var(--text-white)' }}>
+                        {w.display_name} <span style={{ color: 'var(--text-muted)', fontSize: '11px', fontFamily: 'var(--font-mono)' }}>({w.username})</span>
+                      </div>
+                      <span className="badge badge-backlog">{w.assigned_tasks} Tasks Assigned</span>
                     </div>
-                    <span className="badge badge-backlog">{w.assigned_tasks} Tasks Assigned</span>
-                  </div>
 
-                  <div style={{ display: 'flex', gap: '12px', fontSize: '12px', color: 'var(--text-secondary)' }}>
-                    <span>In Progress: <strong style={{ color: 'var(--status-progress)' }}>{w.in_progress_tasks || 0}</strong></span>
-                    <span>Review: <strong style={{ color: 'var(--status-review)' }}>{w.review_tasks || 0}</strong></span>
-                    <span>Complete: <strong style={{ color: 'var(--status-complete)' }}>{w.completed_tasks || 0}</strong></span>
-                    {w.blocked_tasks > 0 && (
-                      <span>Blocked: <strong style={{ color: 'var(--status-blocked)' }}>{w.blocked_tasks}</strong></span>
-                    )}
+                    <div style={{ display: 'flex', gap: '12px', fontSize: '12px', color: 'var(--text-secondary)' }}>
+                      <span>In Progress: <strong style={{ color: 'var(--status-progress)' }}>{w.in_progress_tasks || 0}</strong></span>
+                      <span>Review: <strong style={{ color: 'var(--status-review)' }}>{w.review_tasks || 0}</strong></span>
+                      <span>Complete: <strong style={{ color: 'var(--status-complete)' }}>{w.completed_tasks || 0}</strong></span>
+                      {w.blocked_tasks > 0 && (
+                        <span>Blocked: <strong style={{ color: 'var(--status-blocked)' }}>{w.blocked_tasks}</strong></span>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Upcoming Deadlines */}

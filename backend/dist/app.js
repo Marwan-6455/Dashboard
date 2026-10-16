@@ -44,6 +44,7 @@ exports.app.use('/api/reviews', reviewRoutes_js_1.reviewRouter);
 exports.app.use('/api/evidence', evidenceRoutes_js_1.evidenceRouter);
 exports.app.use('/api/test-reports', testReportRoutes_js_1.testReportRouter);
 exports.app.use('/api/team', teamRoutes_js_1.teamRouter);
+exports.app.use('/api/teams', teamRoutes_js_1.teamRouter);
 exports.app.use('/api/activity', activityRoutes_js_1.activityRouter);
 exports.app.use('/api/stats', statsRoutes_js_1.statsRouter);
 exports.app.use('/api/integrations', integrationRoutes_js_1.integrationRouter);

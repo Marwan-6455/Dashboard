@@ -25,9 +25,14 @@ export const data = new SlashCommandBuilder()
     .setDescription('Category')
     .setRequired(false)
     .addChoices({ name: 'Gameplay', value: 'Gameplay' }, { name: 'Engine', value: 'Engine' }, { name: 'Graphics', value: 'Graphics' }, { name: 'Audio', value: 'Audio' }, { name: 'QA', value: 'QA' }))
+    .addStringOption((opt) => opt
+    .setName('team')
+    .setDescription('Assign to one of the 6 studio teams')
+    .setRequired(false)
+    .addChoices({ name: 'Story Team', value: 'team_story' }, { name: 'Coding Team', value: 'team_coding' }, { name: 'Marketing Team', value: 'team_marketing' }, { name: 'Engine Team', value: 'team_engine' }, { name: '3D Artists', value: 'team_3d_artists' }, { name: 'Sound Team', value: 'team_sound' }))
     .addStringOption((opt) => opt.setName('deadline').setDescription('Deadline date (YYYY-MM-DD)').setRequired(false))
-    .addStringOption((opt) => opt.setName('assignee').setDescription('Assignee username or display name (e.g. yehia, joe, lead)').setRequired(false))
-    .addStringOption((opt) => opt.setName('reviewer').setDescription('Reviewer username or display name (e.g. lead)').setRequired(false)))
+    .addStringOption((opt) => opt.setName('assignee').setDescription('Assignee username or display name').setRequired(false))
+    .addStringOption((opt) => opt.setName('reviewer').setDescription('Reviewer username or display name').setRequired(false)))
     // Subcommand: assign
     .addSubcommand((sub) => sub
     .setName('assign')
@@ -152,6 +157,7 @@ async function handleCreate(interaction) {
     const description = interaction.options.getString('description', true).trim();
     const priority = interaction.options.getString('priority') || 'P1';
     const category = interaction.options.getString('category') || 'Gameplay';
+    const team = interaction.options.getString('team') || undefined;
     const deadline = interaction.options.getString('deadline') || undefined;
     const assignee = interaction.options.getString('assignee') || undefined;
     const reviewer = interaction.options.getString('reviewer') || undefined;
@@ -162,6 +168,7 @@ async function handleCreate(interaction) {
             description,
             priority,
             category,
+            teamId: team,
             deadline,
             ownerUsernameOrId: assignee,
             reviewerUsernameOrId: reviewer
@@ -172,7 +179,7 @@ async function handleCreate(interaction) {
             .setURL(res.dashboardUrl)
             .setDescription(task.description)
             .setColor(CONFIG.COLORS.PRIMARY)
-            .addFields({ name: 'Priority', value: `\`${task.priority}\``, inline: true }, { name: 'Category', value: task.category, inline: true }, { name: 'Status', value: `\`${task.status}\``, inline: true }, { name: 'Assignee', value: task.owner_name ? `@${task.owner_name}` : '*Unassigned*', inline: true }, { name: 'Deadline', value: task.deadline ? task.deadline : '*None*', inline: true })
+            .addFields({ name: 'Priority', value: `\`${task.priority}\``, inline: true }, { name: 'Category', value: task.category, inline: true }, { name: 'Team', value: task.team_name || team || 'Studio', inline: true }, { name: 'Status', value: `\`${task.status}\``, inline: true }, { name: 'Assignee', value: task.owner_name ? `@${task.owner_name}` : '*Unassigned*', inline: true }, { name: 'Deadline', value: task.deadline ? task.deadline : '*None*', inline: true })
             .setFooter({ text: 'Task created on Cindermarch Engine Hub' })
             .setTimestamp();
         await interaction.editReply({ embeds: [embed] });

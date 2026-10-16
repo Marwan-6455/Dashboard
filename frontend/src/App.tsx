@@ -28,8 +28,10 @@ export const App: React.FC = () => {
   const [isProfileModalOpen, setIsProfileModalOpen] = useState<boolean>(false);
   const [taskToEdit, setTaskToEdit] = useState<Task | null>(null);
 
-  // Filter params passed when navigating from Overview cards
+  // Filter params passed when navigating from Overview or Team cards
   const [taskFilterStatus, setTaskFilterStatus] = useState<string>('');
+  const [taskFilterTeam, setTaskFilterTeam] = useState<string>('');
+  const [taskFilterOwner, setTaskFilterOwner] = useState<string>('');
   const [tasksList, setTasksList] = useState<any[]>([]);
   const [teamUsers, setTeamUsers] = useState<any[]>([]);
 
@@ -81,10 +83,14 @@ export const App: React.FC = () => {
       setCurrentPage('task-detail');
       return;
     }
-    if (page === 'tasks' && params?.filterStatus) {
-      setTaskFilterStatus(params.filterStatus);
+    if (page === 'tasks') {
+      setTaskFilterStatus(params?.filterStatus || '');
+      setTaskFilterTeam(params?.filterTeam || '');
+      setTaskFilterOwner(params?.filterOwner || '');
     } else {
       setTaskFilterStatus('');
+      setTaskFilterTeam('');
+      setTaskFilterOwner('');
     }
 
     setSelectedTaskId(null);
@@ -136,6 +142,8 @@ export const App: React.FC = () => {
             onNavigateToTask={handleOpenTaskDetail}
             onOpenNewTaskModal={handleCreateNewTask}
             initialFilterStatus={taskFilterStatus}
+            initialFilterTeam={taskFilterTeam}
+            initialFilterOwner={taskFilterOwner}
             teamUsers={teamUsers}
           />
         )}
@@ -152,7 +160,10 @@ export const App: React.FC = () => {
         {currentPage === 'team' && (
           <TeamPage
             onNavigateToTasksByOwner={(ownerId) => {
-              setCurrentPage('tasks');
+              handleNavigate('tasks', { filterOwner: ownerId });
+            }}
+            onNavigateToTasksByTeam={(teamId) => {
+              handleNavigate('tasks', { filterTeam: teamId });
             }}
           />
         )}

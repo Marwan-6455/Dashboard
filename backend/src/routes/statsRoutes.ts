@@ -6,9 +6,10 @@ export const statsRouter = Router();
 
 statsRouter.use(authMiddleware);
 
-statsRouter.get('/overview', async (_req: AuthenticatedRequest, res: Response): Promise<void> => {
+statsRouter.get('/overview', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    const overview = await getDashboardOverview();
+    const workspaceId = req.user?.workspace_id || 'ws_cindermarch';
+    const overview = await getDashboardOverview(workspaceId);
     res.json(overview);
   } catch (err: any) {
     res.status(500).json({ error: err.message });

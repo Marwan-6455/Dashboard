@@ -78,6 +78,36 @@ CREATE TABLE IF NOT EXISTS projects (
   created_at TEXT NOT NULL
 );
 
+-- Teams table
+CREATE TABLE IF NOT EXISTS teams (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  slug TEXT NOT NULL,
+  description TEXT NOT NULL,
+  manager_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+  project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
+  discord_channel_id TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  UNIQUE(workspace_id, slug)
+);
+
+CREATE INDEX IF NOT EXISTS idx_teams_ws ON teams(workspace_id);
+
+-- Team Members junction table
+CREATE TABLE IF NOT EXISTS team_members (
+  id TEXT PRIMARY KEY,
+  team_id TEXT NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  role TEXT NOT NULL CHECK(role IN ('manager', 'member')) DEFAULT 'member',
+  joined_at TEXT NOT NULL,
+  UNIQUE(team_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_tm_team ON team_members(team_id);
+CREATE INDEX IF NOT EXISTS idx_tm_user ON team_members(user_id);
+
 -- Tasks table
 CREATE TABLE IF NOT EXISTS tasks (
   id TEXT PRIMARY KEY, -- e.g. T6-ENG-001
@@ -85,6 +115,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   description TEXT NOT NULL,
   project_id TEXT NOT NULL REFERENCES projects(id),
   workspace_id TEXT REFERENCES workspaces(id) ON DELETE CASCADE,
+  team_id TEXT REFERENCES teams(id) ON DELETE SET NULL,
   category TEXT DEFAULT 'Gameplay',
   owner_id TEXT REFERENCES users(id),
   reviewer_id TEXT REFERENCES users(id),
@@ -112,6 +143,7 @@ CREATE INDEX IF NOT EXISTS idx_tasks_owner ON tasks(owner_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_reviewer ON tasks(reviewer_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_priority ON tasks(priority);
 CREATE INDEX IF NOT EXISTS idx_tasks_ws ON tasks(workspace_id);
+CREATE INDEX IF NOT EXISTS idx_tasks_team ON tasks(team_id);
 
 -- Task Acceptance Criteria table
 CREATE TABLE IF NOT EXISTS task_acceptance_criteria (
@@ -360,4 +392,16 @@ CREATE TABLE IF NOT EXISTS discord_event_outbox (
 );
 
 CREATE INDEX IF NOT EXISTS idx_outbox_pending ON discord_event_outbox(status, created_at);
+
+-- User Sessions table (Persistent auth sessions)
+CREATE TABLE IF NOT EXISTS user_sessions (
+  token TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  csrf_token TEXT,
+  created_at TEXT NOT NULL,
+  expires_at INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_sessions_token ON user_sessions(token);
+CREATE INDEX IF NOT EXISTS idx_sessions_user ON user_sessions(user_id);
 `;

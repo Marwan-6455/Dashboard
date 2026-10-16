@@ -38,6 +38,10 @@ function getTasks(filters = {}, db = (0, connection_js_1.getDb)()) {
         conditions.push('(t.workspace_id = ? OR t.workspace_id IS NULL)');
         params.push(filters.workspaceId);
     }
+    if (filters.teamId) {
+        conditions.push('(t.team_id = ? OR tm.slug = ?)');
+        params.push(filters.teamId, filters.teamId);
+    }
     if (filters.category) {
         conditions.push('t.category = ?');
         params.push(filters.category);
@@ -80,6 +84,8 @@ function getTasks(filters = {}, db = (0, connection_js_1.getDb)()) {
     const stmt = db.prepare(`
     SELECT 
       t.*,
+      tm.name as team_name,
+      tm.slug as team_slug,
       u_owner.display_name as owner_name,
       u_owner.username as owner_username,
       u_rev.display_name as reviewer_name,
@@ -93,6 +99,7 @@ function getTasks(filters = {}, db = (0, connection_js_1.getDb)()) {
       (SELECT COUNT(*) FROM reviews r WHERE r.task_id = t.id) as review_count,
       (SELECT decision FROM reviews r WHERE r.task_id = t.id ORDER BY r.created_at DESC LIMIT 1) as latest_review_decision
     FROM tasks t
+    LEFT JOIN teams tm ON t.team_id = tm.id
     LEFT JOIN users u_owner ON t.owner_id = u_owner.id
     LEFT JOIN users u_rev ON t.reviewer_id = u_rev.id
     LEFT JOIN users u_creator ON t.creator_id = u_creator.id
@@ -105,12 +112,15 @@ function getTaskById(taskId, db = (0, connection_js_1.getDb)()) {
     const stmt = db.prepare(`
     SELECT 
       t.*,
+      tm.name as team_name,
+      tm.slug as team_slug,
       u_owner.display_name as owner_name,
       u_owner.username as owner_username,
       u_rev.display_name as reviewer_name,
       u_rev.username as reviewer_username,
       u_creator.display_name as creator_name
     FROM tasks t
+    LEFT JOIN teams tm ON t.team_id = tm.id
     LEFT JOIN users u_owner ON t.owner_id = u_owner.id
     LEFT JOIN users u_rev ON t.reviewer_id = u_rev.id
     LEFT JOIN users u_creator ON t.creator_id = u_creator.id
@@ -221,12 +231,12 @@ function createTask(data, creatorId, db = (0, connection_js_1.getDb)()) {
     const tagsJson = data.tags ? JSON.stringify(data.tags) : null;
     const stmt = db.prepare(`
     INSERT INTO tasks (
-      id, title, description, project_id, workspace_id, category,
+      id, title, description, project_id, workspace_id, team_id, category,
       estimated_effort, actual_effort, tags_json, last_edited_by,
       owner_id, reviewer_id, priority, status, deadline, creator_id, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
-    stmt.run(id, data.title, data.description, projectId, workspaceId, category, data.estimatedEffort || null, data.actualEffort || null, tagsJson, creatorId, data.ownerId || null, data.reviewerId || null, priority, status, data.deadline || null, creatorId, now, now);
+    stmt.run(id, data.title, data.description || '', projectId, workspaceId, data.teamId || null, category, data.estimatedEffort || null, data.actualEffort || null, tagsJson, creatorId, data.ownerId || null, data.reviewerId || null, priority, status, data.deadline || null, creatorId, now, now);
     // Add acceptance criteria if provided
     if (data.acceptanceCriteria && Array.isArray(data.acceptanceCriteria)) {
         const tacStmt = db.prepare(`
@@ -279,6 +289,7 @@ function updateTask(taskId, updates, actorId, db = (0, connection_js_1.getDb)())
       title = COALESCE(?, title),
       description = COALESCE(?, description),
       workspace_id = COALESCE(?, workspace_id),
+      team_id = ?,
       category = COALESCE(?, category),
       estimated_effort = COALESCE(?, estimated_effort),
       actual_effort = COALESCE(?, actual_effort),
@@ -297,7 +308,7 @@ function updateTask(taskId, updates, actorId, db = (0, connection_js_1.getDb)())
       updated_at = ?
     WHERE id = ?
   `);
-    stmt.run(updates.title ?? null, updates.description ?? null, updates.workspaceId ?? null, updates.category ?? null, updates.estimatedEffort ?? null, updates.actualEffort ?? null, tagsJson, actorId, updates.ownerId !== undefined ? updates.ownerId : existing.owner_id, updates.reviewerId !== undefined ? updates.reviewerId : existing.reviewer_id, updates.priority ?? null, updates.deadline !== undefined ? updates.deadline : existing.deadline, updates.isChangesetExempt !== undefined ? (updates.isChangesetExempt ? 1 : 0) : null, updates.changesetExemptionReason !== undefined ? updates.changesetExemptionReason : existing.changeset_exemption_reason, updates.changesetExemptApprovedBy !== undefined ? updates.changesetExemptApprovedBy : existing.changeset_exempt_approved_by, updates.isTestExempt !== undefined ? (updates.isTestExempt ? 1 : 0) : null, updates.testExemptionReason !== undefined ? updates.testExemptionReason : existing.test_exemption_reason, updates.testExemptApprovedBy !== undefined ? updates.testExemptApprovedBy : existing.test_exempt_approved_by, now, taskId);
+    stmt.run(updates.title ?? null, updates.description ?? null, updates.workspaceId ?? null, updates.teamId !== undefined ? updates.teamId : existing.team_id, updates.category ?? null, updates.estimatedEffort ?? null, updates.actualEffort ?? null, tagsJson, actorId, updates.ownerId !== undefined ? updates.ownerId : existing.owner_id, updates.reviewerId !== undefined ? updates.reviewerId : existing.reviewer_id, updates.priority ?? null, updates.deadline !== undefined ? updates.deadline : existing.deadline, updates.isChangesetExempt !== undefined ? (updates.isChangesetExempt ? 1 : 0) : null, updates.changesetExemptionReason !== undefined ? updates.changesetExemptionReason : existing.changeset_exemption_reason, updates.changesetExemptApprovedBy !== undefined ? updates.changesetExemptApprovedBy : existing.changeset_exempt_approved_by, updates.isTestExempt !== undefined ? (updates.isTestExempt ? 1 : 0) : null, updates.testExemptionReason !== undefined ? updates.testExemptionReason : existing.test_exemption_reason, updates.testExemptApprovedBy !== undefined ? updates.testExemptApprovedBy : existing.test_exempt_approved_by, now, taskId);
     // Check changed fields and record activity & notifications
     if (updates.priority && updates.priority !== existing.priority) {
         (0, activityService_js_1.recordActivity)(actorId, 'priority_changed', taskId, existing.priority, updates.priority, 'application', null, db);

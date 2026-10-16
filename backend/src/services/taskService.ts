@@ -35,6 +35,7 @@ export function getTasks(
     search?: string;
     projectId?: string;
     workspaceId?: string;
+    teamId?: string;
     category?: string;
     overdueOnly?: boolean;
     myTasksUserId?: string;
@@ -49,6 +50,10 @@ export function getTasks(
   if (filters.workspaceId) {
     conditions.push('(t.workspace_id = ? OR t.workspace_id IS NULL)');
     params.push(filters.workspaceId);
+  }
+  if (filters.teamId) {
+    conditions.push('(t.team_id = ? OR tm.slug = ?)');
+    params.push(filters.teamId, filters.teamId);
   }
   if (filters.category) {
     conditions.push('t.category = ?');
@@ -94,6 +99,8 @@ export function getTasks(
   const stmt = db.prepare(`
     SELECT 
       t.*,
+      tm.name as team_name,
+      tm.slug as team_slug,
       u_owner.display_name as owner_name,
       u_owner.username as owner_username,
       u_rev.display_name as reviewer_name,
@@ -107,6 +114,7 @@ export function getTasks(
       (SELECT COUNT(*) FROM reviews r WHERE r.task_id = t.id) as review_count,
       (SELECT decision FROM reviews r WHERE r.task_id = t.id ORDER BY r.created_at DESC LIMIT 1) as latest_review_decision
     FROM tasks t
+    LEFT JOIN teams tm ON t.team_id = tm.id
     LEFT JOIN users u_owner ON t.owner_id = u_owner.id
     LEFT JOIN users u_rev ON t.reviewer_id = u_rev.id
     LEFT JOIN users u_creator ON t.creator_id = u_creator.id
@@ -121,12 +129,15 @@ export function getTaskById(taskId: string, db = getDb()): any {
   const stmt = db.prepare(`
     SELECT 
       t.*,
+      tm.name as team_name,
+      tm.slug as team_slug,
       u_owner.display_name as owner_name,
       u_owner.username as owner_username,
       u_rev.display_name as reviewer_name,
       u_rev.username as reviewer_username,
       u_creator.display_name as creator_name
     FROM tasks t
+    LEFT JOIN teams tm ON t.team_id = tm.id
     LEFT JOIN users u_owner ON t.owner_id = u_owner.id
     LEFT JOIN users u_rev ON t.reviewer_id = u_rev.id
     LEFT JOIN users u_creator ON t.creator_id = u_creator.id
@@ -232,6 +243,7 @@ export function createTask(
     description: string;
     projectId?: string;
     workspaceId?: string | null;
+    teamId?: string | null;
     category?: string | null;
     estimatedEffort?: string | null;
     actualEffort?: string | null;
@@ -267,18 +279,19 @@ export function createTask(
 
   const stmt = db.prepare(`
     INSERT INTO tasks (
-      id, title, description, project_id, workspace_id, category,
+      id, title, description, project_id, workspace_id, team_id, category,
       estimated_effort, actual_effort, tags_json, last_edited_by,
       owner_id, reviewer_id, priority, status, deadline, creator_id, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   stmt.run(
     id,
     data.title,
-    data.description,
+    data.description || '',
     projectId,
     workspaceId,
+    data.teamId || null,
     category,
     data.estimatedEffort || null,
     data.actualEffort || null,
@@ -377,6 +390,7 @@ export function updateTask(
     title: string;
     description: string;
     workspaceId: string | null;
+    teamId: string | null;
     category: string | null;
     estimatedEffort: string | null;
     actualEffort: string | null;
@@ -408,6 +422,7 @@ export function updateTask(
       title = COALESCE(?, title),
       description = COALESCE(?, description),
       workspace_id = COALESCE(?, workspace_id),
+      team_id = ?,
       category = COALESCE(?, category),
       estimated_effort = COALESCE(?, estimated_effort),
       actual_effort = COALESCE(?, actual_effort),
@@ -431,6 +446,7 @@ export function updateTask(
     updates.title ?? null,
     updates.description ?? null,
     updates.workspaceId ?? null,
+    updates.teamId !== undefined ? updates.teamId : existing.team_id,
     updates.category ?? null,
     updates.estimatedEffort ?? null,
     updates.actualEffort ?? null,
