@@ -28,6 +28,12 @@ export interface WorkspaceMember {
   user_id: string;
   role: UserRole;
   joined_at: string;
+  is_suspended?: number;
+  suspended_at?: string | null;
+  suspension_reason?: string | null;
+  reinstated_at?: string | null;
+  reinstated_by?: string | null;
+  reinstatement_reason?: string | null;
 }
 
 export interface WorkspaceInvitation {
@@ -45,7 +51,18 @@ export interface WorkspaceInvitation {
 export interface NotificationItem {
   id: string;
   user_id: string;
-  type: 'task_assigned' | 'review_requested' | 'review_decision' | 'task_completed' | 'comment_added' | 'overdue_warning';
+  type:
+    | 'task_assigned'
+    | 'review_requested'
+    | 'review_decision'
+    | 'task_completed'
+    | 'comment_added'
+    | 'overdue_warning'
+    | 'strike_warning'
+    | 'strike_issued'
+    | 'strike_reversed'
+    | 'member_suspended'
+    | 'member_reinstated';
   title: string;
   message: string;
   related_task_id: string | null;
@@ -88,6 +105,14 @@ export interface Task {
   test_exemption_reason: string | null;
   test_exempt_approved_by: string | null;
   team_id?: string | null;
+  is_deadline_exempt?: number;
+  deadline_exemption_reason?: string | null;
+  deadline_exempt_approved_by?: string | null;
+  extended_deadline?: string | null;
+  deadline_extension_reason?: string | null;
+  deadline_extension_approved_by?: string | null;
+  reassignment_required?: number;
+  reassignment_reason?: string | null;
   completed_at: string | null;
   created_at: string;
   updated_at: string;
@@ -372,7 +397,14 @@ export type OutboxEventType =
   | 'review_decision'
   | 'test_report_ingested'
   | 'manual_announcement'
-  | 'test_ping';
+  | 'test_ping'
+  | 'strike_issued'
+  | 'strike_warning'
+  | 'workspace_entry_warning'
+  | 'threshold_warning'
+  | 'strike_reversed'
+  | 'member_suspended'
+  | 'member_reinstated';
 
 export interface DiscordEventOutbox {
   id: string;
@@ -386,4 +418,76 @@ export interface DiscordEventOutbox {
   last_error?: string | null;
   created_at: string;
   processed_at?: string | null;
+}
+
+export type StrikeStatus = 'active' | 'disputed' | 'reversed' | 'excused';
+
+export interface Strike {
+  id: string;
+  workspace_id: string;
+  user_id: string;
+  task_id: string;
+  applicable_deadline: string;
+  detected_at: string;
+  reason: string;
+  status: StrikeStatus;
+  evidence_references?: string | null;
+  notification_history_json?: string | null;
+  appeal_reason?: string | null;
+  appealed_at?: string | null;
+  appeal_outcome?: string | null;
+  reviewed_by?: string | null;
+  reviewed_at?: string | null;
+  reversed_by?: string | null;
+  reversed_at?: string | null;
+  reversal_reason?: string | null;
+  policy_snapshot_json: string;
+  idempotency_key: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface StrikePolicy {
+  strike_threshold: number; // default: 5
+  grace_period_hours: number; // default: 24
+  timezone: string; // default: 'Africa/Cairo'
+  manager_escalation_enabled: boolean; // default: true
+  discord_dm_enabled: boolean; // default: true
+  allow_member_disputes: boolean; // default: true
+  reinstatement_requires_admin: boolean; // default: true
+  warning_templates?: {
+    first_warning?: string;
+    second_warning?: string;
+    escalation?: string;
+    final_warning?: string;
+    suspended?: string;
+  };
+}
+
+export type WarningLevel = 'none' | 'first_warning' | 'second_warning' | 'escalation' | 'final_warning' | 'suspended';
+
+export interface WorkspaceEntryEvent {
+  id: string;
+  workspace_id: string;
+  user_id: string;
+  session_id: string;
+  active_strike_count: number;
+  warning_level: WarningLevel;
+  discord_dm_status: 'delivered' | 'failed' | 'skipped' | 'not_linked';
+  discord_error?: string | null;
+  discord_message_id?: string | null;
+  entered_at: string;
+}
+
+export interface WorkspaceSuspension {
+  id: string;
+  workspace_id: string;
+  user_id: string;
+  strike_count_at_suspension: number;
+  status: 'active' | 'reinstated';
+  reason: string;
+  suspended_at: string;
+  reinstated_at?: string | null;
+  reinstated_by?: string | null;
+  reinstatement_reason?: string | null;
 }

@@ -91,16 +91,29 @@ async function getDashboardOverview(workspaceId = 'ws_cindermarch', db = (0, con
     ORDER BY assigned_tasks DESC
   `);
     const workload = workloadStmt.all(workspaceId, workspaceId);
-    // 4. Upcoming Deadlines
+    // 4. Upcoming Deadlines with Strike Policy metadata
     const deadlinesStmt = db.prepare(`
-    SELECT t.id, t.title, t.priority, t.status, t.deadline, u.display_name as owner_name
+    SELECT 
+      t.id, t.title, t.priority, t.status, t.deadline,
+      t.extended_deadline, t.is_deadline_exempt, t.deadline_exemption_reason,
+      t.reassignment_required, t.reassignment_reason,
+      u.display_name as owner_name
     FROM tasks t
     LEFT JOIN users u ON t.owner_id = u.id
-    WHERE t.deadline IS NOT NULL AND t.status != 'Verified Complete'
-    ORDER BY t.deadline ASC
+    WHERE (t.deadline IS NOT NULL OR t.extended_deadline IS NOT NULL) 
+      AND t.status != 'Verified Complete'
+      AND (t.workspace_id = ? OR t.workspace_id IS NULL)
+    ORDER BY COALESCE(t.extended_deadline, t.deadline) ASC
     LIMIT 6
   `);
-    const upcomingDeadlines = deadlinesStmt.all();
+    const upcomingDeadlines = deadlinesStmt.all(workspaceId);
+    // Disciplinary & Strike Accountability Metrics
+    const strikesStmt = db.prepare(`SELECT COUNT(*) as count FROM strikes WHERE (workspace_id = ? OR workspace_id IS NULL) AND status = 'active'`);
+    const activeStrikesCount = strikesStmt.get(workspaceId)?.count || 0;
+    const suspendedStmt = db.prepare(`SELECT COUNT(*) as count FROM workspace_members WHERE workspace_id = ? AND is_suspended = 1`);
+    const suspendedMembersCount = suspendedStmt.get(workspaceId)?.count || 0;
+    const disputedStmt = db.prepare(`SELECT COUNT(*) as count FROM strikes WHERE (workspace_id = ? OR workspace_id IS NULL) AND status = 'disputed'`);
+    const disputedStrikesCount = disputedStmt.get(workspaceId)?.count || 0;
     // 5. Recent Review Decisions
     const reviewsStmt = db.prepare(`
     SELECT 
@@ -176,6 +189,12 @@ async function getDashboardOverview(workspaceId = 'ws_cindermarch', db = (0, con
         recentReviews,
         recentReports,
         recentActivity,
+        disciplinary: {
+            activeStrikesCount,
+            suspendedMembersCount,
+            disputedStrikesCount,
+            maxStrikes: 5
+        },
         integrations: {
             uvcs: uvcsStatus,
             unityTestRunner: configMap['unity_test_runner'] || { status: 'ready_for_ingestion' },

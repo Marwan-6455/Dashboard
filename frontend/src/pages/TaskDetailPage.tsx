@@ -16,7 +16,10 @@ import {
   Download,
   Trash2,
   Edit,
-  ExternalLink
+  ExternalLink,
+  Calendar,
+  AlertTriangle,
+  X
 } from 'lucide-react';
 import { Task, TaskStatus, Priority } from '../types/index.js';
 import { StatusBadge } from '../components/StatusBadge.js';
@@ -42,7 +45,8 @@ export const TaskDetailPage: React.FC<TaskDetailPageProps> = ({
   onEditTask,
   teamUsers = []
 }) => {
-  const { user } = useAuth();
+  const { user, hasRole } = useAuth();
+  const isAdminOrOwner = hasRole('admin') || hasRole('owner');
   const [task, setTask] = useState<Task | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -60,6 +64,16 @@ export const TaskDetailPage: React.FC<TaskDetailPageProps> = ({
   const [isEvidenceModalOpen, setIsEvidenceModalOpen] = useState(false);
   const [isTestReportModalOpen, setIsTestReportModalOpen] = useState(false);
 
+  // Strike Policy deadline modals
+  const [isExtendModalOpen, setIsExtendModalOpen] = useState(false);
+  const [newExtendedDeadline, setNewExtendedDeadline] = useState('');
+  const [extensionReason, setExtensionReason] = useState('');
+  const [isSubmittingExtension, setIsSubmittingExtension] = useState(false);
+
+  const [isExemptModalOpen, setIsExemptModalOpen] = useState(false);
+  const [exemptionReason, setExemptionReason] = useState('');
+  const [isSubmittingExemption, setIsSubmittingExemption] = useState(false);
+
   const fetchTask = async () => {
     try {
       setIsLoading(true);
@@ -76,6 +90,56 @@ export const TaskDetailPage: React.FC<TaskDetailPageProps> = ({
   useEffect(() => {
     fetchTask();
   }, [taskId]);
+
+  const handleExtendDeadline = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newExtendedDeadline || !extensionReason) {
+      alert('Please provide both the new deadline and an approved justification reason.');
+      return;
+    }
+    setIsSubmittingExtension(true);
+    try {
+      await apiRequest(`/api/tasks/${taskId}/extend-deadline`, {
+        method: 'POST',
+        body: JSON.stringify({
+          extendedDeadline: newExtendedDeadline,
+          reason: extensionReason
+        })
+      });
+      setIsExtendModalOpen(false);
+      setNewExtendedDeadline('');
+      setExtensionReason('');
+      fetchTask();
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setIsSubmittingExtension(false);
+    }
+  };
+
+  const handleExemptDeadline = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!exemptionReason) {
+      alert('Please document a valid reason for exempting this deadline from strikes.');
+      return;
+    }
+    setIsSubmittingExemption(true);
+    try {
+      await apiRequest(`/api/tasks/${taskId}/exempt-deadline`, {
+        method: 'POST',
+        body: JSON.stringify({
+          reason: exemptionReason
+        })
+      });
+      setIsExemptModalOpen(false);
+      setExemptionReason('');
+      fetchTask();
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setIsSubmittingExemption(false);
+    }
+  };
 
   const handleStatusChange = async (newStatus: TaskStatus) => {
     try {
@@ -175,7 +239,30 @@ export const TaskDetailPage: React.FC<TaskDetailPageProps> = ({
           <ArrowLeft size={16} /> Back to Tasks
         </button>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          {isAdminOrOwner && (
+            <>
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={() => {
+                  setNewExtendedDeadline(task.extended_deadline || task.deadline || '');
+                  setIsExtendModalOpen(true);
+                }}
+              >
+                <Calendar size={14} /> Extend Deadline
+              </button>
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={() => {
+                  setExemptionReason(task.deadline_exemption_reason || '');
+                  setIsExemptModalOpen(true);
+                }}
+              >
+                <ShieldCheck size={14} /> {task.is_deadline_exempt === 1 ? 'Update Exemption' : 'Exempt from Strikes'}
+              </button>
+            </>
+          )}
+
           <select
             className="form-control"
             style={{ width: 'auto', fontWeight: 600 }}
@@ -197,14 +284,48 @@ export const TaskDetailPage: React.FC<TaskDetailPageProps> = ({
         </div>
       </div>
 
+      {/* Reassignment Required Warning Banner */}
+      {task.reassignment_required === 1 && (
+        <div
+          style={{
+            marginBottom: '20px',
+            padding: '14px 18px',
+            backgroundColor: 'rgba(239, 68, 68, 0.12)',
+            border: '1px solid rgba(239, 68, 68, 0.4)',
+            borderRadius: 'var(--radius-md)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px'
+          }}
+        >
+          <AlertTriangle size={20} color="#EF4444" />
+          <div style={{ fontSize: '13px' }}>
+            <strong style={{ color: '#EF4444' }}>REASSIGNMENT REQUIRED:</strong>{' '}
+            <span>
+              This task was previously assigned to a developer whose workspace access is suspended under the deadline policy ({task.reassignment_reason || 'Disciplinary suspension'}). Please reassign this task to an active team member.
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Task Heading */}
       <div style={{ marginBottom: '24px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px', flexWrap: 'wrap' }}>
           <span className="mono" style={{ fontSize: '18px', fontWeight: 700, color: 'var(--accent-orange)' }}>
             {task.id}
           </span>
           <PriorityBadge priority={task.priority} />
           <StatusBadge status={task.status} />
+          {task.is_deadline_exempt === 1 && (
+            <span className="badge badge-verified-complete">
+              EXEMPT FROM STRIKE POLICY
+            </span>
+          )}
+          {task.extended_deadline && (
+            <span className="badge badge-changes-requested">
+              DEADLINE EXTENDED: {new Date(task.extended_deadline).toLocaleDateString()}
+            </span>
+          )}
           {task.completed_at && (
             <span className="badge badge-verified-complete">
               COMPLETED ON {new Date(task.completed_at).toLocaleDateString()}
@@ -299,6 +420,31 @@ export const TaskDetailPage: React.FC<TaskDetailPageProps> = ({
                 <strong className="mono">
                   {task.deadline ? new Date(task.deadline).toLocaleDateString() : 'None scheduled'}
                 </strong>
+              </div>
+              {task.extended_deadline && (
+                <div>
+                  <span style={{ color: 'var(--text-secondary)' }}>Approved Extension:</span>{' '}
+                  <strong className="mono" style={{ color: 'var(--status-review)' }}>
+                    {new Date(task.extended_deadline).toLocaleDateString()}
+                  </strong>
+                  {task.deadline_extension_reason && (
+                    <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                      Justification: {task.deadline_extension_reason}
+                    </div>
+                  )}
+                </div>
+              )}
+              <div>
+                <span style={{ color: 'var(--text-secondary)' }}>Deadline Policy Status:</span>{' '}
+                {task.is_deadline_exempt === 1 ? (
+                  <span style={{ color: 'var(--status-complete)', fontWeight: 600 }}>
+                    Exempt ({task.deadline_exemption_reason || 'Approved exemption'})
+                  </span>
+                ) : (
+                  <span style={{ color: 'var(--text-white)' }}>
+                    Subject to 5-strike policy (24h grace period)
+                  </span>
+                )}
               </div>
               <div>
                 <span style={{ color: 'var(--text-secondary)' }}>Last Updated:</span>{' '}
@@ -822,6 +968,112 @@ export const TaskDetailPage: React.FC<TaskDetailPageProps> = ({
         defaultTaskId={taskId}
         tasks={[task]}
       />
+
+      {/* Extend Deadline Modal */}
+      {isExtendModalOpen && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '500px' }}>
+            <div className="modal-header">
+              <div className="modal-title">Approve Deadline Extension</div>
+              <button onClick={() => setIsExtendModalOpen(false)} style={{ color: 'var(--text-secondary)' }}>
+                <X size={20} />
+              </button>
+            </div>
+            <form onSubmit={handleExtendDeadline}>
+              <div className="modal-body">
+                <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '16px' }}>
+                  Extending a task deadline updates the accountability baseline under the 5-strike policy. Strikes are not issued before the approved extension expires.
+                </div>
+                <div className="form-group">
+                  <label className="form-label">New Extended Deadline</label>
+                  <input
+                    type="date"
+                    className="form-control"
+                    value={newExtendedDeadline ? newExtendedDeadline.slice(0, 10) : ''}
+                    onChange={(e) => setNewExtendedDeadline(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Approved Justification / Reason</label>
+                  <textarea
+                    className="form-control"
+                    rows={3}
+                    placeholder="Document technical dependency, engine scope change, or external blocker..."
+                    value={extensionReason}
+                    onChange={(e) => setExtensionReason(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => setIsExtendModalOpen(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary btn-sm"
+                  disabled={isSubmittingExtension}
+                >
+                  {isSubmittingExtension ? 'Saving Extension...' : 'Confirm Deadline Extension'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Exempt Deadline Policy Modal */}
+      {isExemptModalOpen && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '500px' }}>
+            <div className="modal-header">
+              <div className="modal-title">Exempt Task from Strike Policy</div>
+              <button onClick={() => setIsExemptModalOpen(false)} style={{ color: 'var(--text-secondary)' }}>
+                <X size={20} />
+              </button>
+            </div>
+            <form onSubmit={handleExemptDeadline}>
+              <div className="modal-body">
+                <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '16px' }}>
+                  Exempted tasks do not incur disciplinary strikes upon missing their milestone deadline. This action is permanently recorded in the workspace audit trail.
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Exemption Reason (Mandatory)</label>
+                  <textarea
+                    className="form-control"
+                    rows={3}
+                    placeholder="Explain research spike, non-blocking exploration, or partner dependency..."
+                    value={exemptionReason}
+                    onChange={(e) => setExemptionReason(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => setIsExemptModalOpen(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary btn-sm"
+                  disabled={isSubmittingExemption}
+                >
+                  {isSubmittingExemption ? 'Recording Exemption...' : 'Confirm Strike Exemption'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

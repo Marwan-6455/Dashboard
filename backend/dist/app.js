@@ -19,6 +19,7 @@ const integrationRoutes_js_1 = require("./routes/integrationRoutes.js");
 const settingsRoutes_js_1 = require("./routes/settingsRoutes.js");
 const notificationRoutes_js_1 = require("./routes/notificationRoutes.js");
 const botRoutes_js_1 = require("./routes/botRoutes.js");
+const strikeRoutes_js_1 = require("./routes/strikeRoutes.js");
 const errorHandler_js_1 = require("./middleware/errorHandler.js");
 exports.app = (0, express_1.default)();
 exports.app.use((0, cors_1.default)({
@@ -51,5 +52,6 @@ exports.app.use('/api/integrations', integrationRoutes_js_1.integrationRouter);
 exports.app.use('/api/settings', settingsRoutes_js_1.settingsRouter);
 exports.app.use('/api/notifications', notificationRoutes_js_1.notificationRouter);
 exports.app.use('/api/bot', botRoutes_js_1.botRouter);
+exports.app.use('/api/strikes', strikeRoutes_js_1.strikeRouter);
 // Centralized error handler
 exports.app.use(errorHandler_js_1.errorHandler);

@@ -13,6 +13,7 @@ import { integrationRouter } from './routes/integrationRoutes.js';
 import { settingsRouter } from './routes/settingsRoutes.js';
 import { notificationRouter } from './routes/notificationRoutes.js';
 import { botRouter } from './routes/botRoutes.js';
+import { strikeRouter } from './routes/strikeRoutes.js';
 import { errorHandler } from './middleware/errorHandler.js';
 
 export const app = express();
@@ -50,6 +51,7 @@ app.use('/api/integrations', integrationRouter);
 app.use('/api/settings', settingsRouter);
 app.use('/api/notifications', notificationRouter);
 app.use('/api/bot', botRouter);
+app.use('/api/strikes', strikeRouter);
 
 // Centralized error handler
 app.use(errorHandler);

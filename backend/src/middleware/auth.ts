@@ -108,6 +108,39 @@ export function authMiddleware(req: AuthenticatedRequest, res: Response, next: N
     }
   }
 
+  // Workspace suspension check for protected workspace resources
+  const url = (req.baseUrl || '') + (req.path || '');
+  if (
+    !url.startsWith('/api/auth') &&
+    !url.startsWith('/api/strikes/my-status') &&
+    !url.startsWith('/api/strikes/workspace-entry') &&
+    !url.includes('/dispute') &&
+    !url.startsWith('/api/bot') &&
+    !url.startsWith('/health')
+  ) {
+    const workspaceId = user.workspace_id || 'ws_cindermarch';
+    const db = getDb();
+    try {
+      const member = db.prepare(`
+        SELECT is_suspended, suspension_reason, suspended_at
+        FROM workspace_members
+        WHERE workspace_id = ? AND user_id = ?
+      `).get(workspaceId, user.id) as { is_suspended: number; suspension_reason: string; suspended_at: string } | undefined;
+
+      if (member && member.is_suspended === 1) {
+        res.status(403).json({
+          error: 'Workspace membership suspended due to deadline strikes policy.',
+          isSuspended: true,
+          suspensionReason: member.suspension_reason || 'Exceeded maximum deadline strikes threshold.',
+          suspendedAt: member.suspended_at
+        });
+        return;
+      }
+    } catch {
+      // Graceful fallback if table/column in migration is pending
+    }
+  }
+
   next();
 }
 
@@ -132,4 +165,43 @@ export function requireRole(allowedRoles: UserRole[]) {
       res.status(403).json({ error: 'Malformed user role permissions.' });
     }
   };
+}
+
+export function checkWorkspaceSuspension(req: AuthenticatedRequest, res: Response, next: NextFunction): void {
+  if (!req.user) {
+    return next();
+  }
+
+  const url = (req.baseUrl || '') + (req.path || '');
+  // Allow essential routes for suspended users: auth, strike status, workspace entry warning, and disputes
+  if (
+    url.startsWith('/api/auth') ||
+    url.startsWith('/api/strikes/my-status') ||
+    url.startsWith('/api/strikes/workspace-entry') ||
+    url.includes('/dispute') ||
+    url.startsWith('/api/bot') ||
+    url.startsWith('/health')
+  ) {
+    return next();
+  }
+
+  const workspaceId = req.user.workspace_id || 'ws_cindermarch';
+  const db = getDb();
+  const member = db.prepare(`
+    SELECT is_suspended, suspension_reason, suspended_at
+    FROM workspace_members
+    WHERE workspace_id = ? AND user_id = ?
+  `).get(workspaceId, req.user.id) as { is_suspended: number; suspension_reason: string; suspended_at: string } | undefined;
+
+  if (member && member.is_suspended === 1) {
+    res.status(403).json({
+      error: 'Workspace membership suspended due to deadline strikes policy.',
+      isSuspended: true,
+      suspensionReason: member.suspension_reason || 'Exceeded maximum deadline strikes threshold.',
+      suspendedAt: member.suspended_at
+    });
+    return;
+  }
+
+  next();
 }

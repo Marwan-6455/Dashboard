@@ -35,6 +35,12 @@ CREATE TABLE IF NOT EXISTS workspace_members (
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   role TEXT NOT NULL CHECK(role IN ('owner', 'admin', 'developer', 'reviewer')),
   joined_at TEXT NOT NULL,
+  is_suspended INTEGER NOT NULL DEFAULT 0,
+  suspended_at TEXT,
+  suspension_reason TEXT,
+  reinstated_at TEXT,
+  reinstated_by TEXT REFERENCES users(id),
+  reinstatement_reason TEXT,
   UNIQUE(workspace_id, user_id)
 );
 
@@ -136,6 +142,14 @@ CREATE TABLE IF NOT EXISTS tasks (
   is_test_exempt INTEGER NOT NULL DEFAULT 0,
   test_exemption_reason TEXT,
   test_exempt_approved_by TEXT REFERENCES users(id),
+  is_deadline_exempt INTEGER NOT NULL DEFAULT 0,
+  deadline_exemption_reason TEXT,
+  deadline_exempt_approved_by TEXT REFERENCES users(id),
+  extended_deadline TEXT,
+  deadline_extension_reason TEXT,
+  deadline_extension_approved_by TEXT REFERENCES users(id),
+  reassignment_required INTEGER NOT NULL DEFAULT 0,
+  reassignment_reason TEXT,
   completed_at TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
@@ -407,4 +421,84 @@ CREATE TABLE IF NOT EXISTS user_sessions (
 
 CREATE INDEX IF NOT EXISTS idx_sessions_token ON user_sessions(token);
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON user_sessions(user_id);
+
+-- Deadline Strikes table
+CREATE TABLE IF NOT EXISTS strikes (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+  applicable_deadline TEXT NOT NULL,
+  detected_at TEXT NOT NULL,
+  reason TEXT NOT NULL,
+  status TEXT NOT NULL CHECK(status IN ('active', 'disputed', 'reversed', 'excused')) DEFAULT 'active',
+  evidence_references TEXT,
+  notification_history_json TEXT,
+  appeal_reason TEXT,
+  appealed_at TEXT,
+  appeal_outcome TEXT,
+  reviewed_by TEXT REFERENCES users(id),
+  reviewed_at TEXT,
+  reversed_by TEXT REFERENCES users(id),
+  reversed_at TEXT,
+  reversal_reason TEXT,
+  policy_snapshot_json TEXT NOT NULL,
+  idempotency_key TEXT UNIQUE NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_strikes_ws_user ON strikes(workspace_id, user_id, status);
+CREATE INDEX IF NOT EXISTS idx_strikes_task ON strikes(task_id);
+CREATE INDEX IF NOT EXISTS idx_strikes_idempotency ON strikes(idempotency_key);
+
+-- Workspace Entry Events table
+CREATE TABLE IF NOT EXISTS workspace_entry_events (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  session_id TEXT NOT NULL,
+  active_strike_count INTEGER NOT NULL,
+  warning_level TEXT NOT NULL,
+  discord_dm_status TEXT NOT NULL CHECK(discord_dm_status IN ('delivered', 'failed', 'skipped', 'not_linked')),
+  discord_error TEXT,
+  discord_message_id TEXT,
+  entered_at TEXT NOT NULL,
+  UNIQUE(workspace_id, user_id, session_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_wee_ws_user ON workspace_entry_events(workspace_id, user_id);
+CREATE INDEX IF NOT EXISTS idx_wee_session ON workspace_entry_events(session_id);
+
+-- Strike Threshold Notifications table (deduplication of threshold alerts)
+CREATE TABLE IF NOT EXISTS strike_threshold_notifications (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  threshold_level INTEGER NOT NULL,
+  strike_id TEXT NOT NULL,
+  channel TEXT NOT NULL,
+  status TEXT NOT NULL,
+  error TEXT,
+  notified_at TEXT NOT NULL,
+  UNIQUE(workspace_id, user_id, threshold_level, strike_id, channel)
+);
+
+CREATE INDEX IF NOT EXISTS idx_stn_user ON strike_threshold_notifications(workspace_id, user_id, threshold_level);
+
+-- Workspace Suspensions table (authoritative audit log of member suspensions & reinstatements)
+CREATE TABLE IF NOT EXISTS workspace_suspensions (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  strike_count_at_suspension INTEGER NOT NULL,
+  status TEXT NOT NULL CHECK(status IN ('active', 'reinstated')) DEFAULT 'active',
+  reason TEXT NOT NULL,
+  suspended_at TEXT NOT NULL,
+  reinstated_at TEXT,
+  reinstated_by TEXT REFERENCES users(id),
+  reinstatement_reason TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_ws_user ON workspace_suspensions(workspace_id, user_id);
 `;

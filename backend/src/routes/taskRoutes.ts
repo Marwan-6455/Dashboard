@@ -1,6 +1,6 @@
 import { Router, Response } from 'express';
 import { z } from 'zod';
-import { AuthenticatedRequest, authMiddleware } from '../middleware/auth.js';
+import { AuthenticatedRequest, authMiddleware, checkWorkspaceSuspension, requireRole } from '../middleware/auth.js';
 import {
   createTask,
   getTaskById,
@@ -13,10 +13,12 @@ import {
 } from '../services/taskService.js';
 import { linkChangesetToTask, recordChangeset, unlinkChangesetFromTask } from '../services/uvcsService.js';
 import { evaluateCompletionGates } from '../services/gateService.js';
+import { extendTaskDeadline, exemptTaskDeadline } from '../services/strikeService.js';
 
 export const taskRouter = Router();
 
 taskRouter.use(authMiddleware);
+taskRouter.use(checkWorkspaceSuspension);
 
 taskRouter.get('/', (req: AuthenticatedRequest, res: Response): void => {
   const {
@@ -210,6 +212,38 @@ taskRouter.delete('/:id/changesets/:changesetId', (req: AuthenticatedRequest, re
     unlinkChangesetFromTask(req.params.id, req.params.changesetId, req.user!.id);
     const task = getTaskById(req.params.id);
     res.json({ task });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// POST /api/tasks/:id/extend-deadline (Admin/Owner only)
+taskRouter.post('/:id/extend-deadline', requireRole(['admin']), (req: AuthenticatedRequest, res: Response): void => {
+  const { newDeadline, reason } = req.body;
+  if (!newDeadline || !reason) {
+    res.status(400).json({ error: 'Both newDeadline and a documented reason are required.' });
+    return;
+  }
+
+  try {
+    const updated = extendTaskDeadline(req.params.id, req.user!.id, newDeadline, reason);
+    res.json({ success: true, task: updated });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// POST /api/tasks/:id/exempt-deadline (Admin/Owner only)
+taskRouter.post('/:id/exempt-deadline', requireRole(['admin']), (req: AuthenticatedRequest, res: Response): void => {
+  const { reason } = req.body;
+  if (!reason) {
+    res.status(400).json({ error: 'A documented reason is required to exempt a task deadline.' });
+    return;
+  }
+
+  try {
+    const updated = exemptTaskDeadline(req.params.id, req.user!.id, reason);
+    res.json({ success: true, task: updated });
   } catch (err: any) {
     res.status(400).json({ error: err.message });
   }

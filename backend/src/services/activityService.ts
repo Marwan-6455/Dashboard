@@ -1,36 +1,74 @@
 import { v4 as uuidv4 } from 'uuid';
+import type { DatabaseSync } from 'node:sqlite';
 import { getDb } from '../db/connection.js';
 import { ActivityEvent, ActivitySource } from '../types/index.js';
 
 export function recordActivity(
-  actorId: string | null,
-  action: string,
-  relatedTaskId: string | null,
+  actorIdOrOptions: string | null | {
+    actorId?: string | null;
+    action: string;
+    relatedTaskId?: string | null;
+    previousValue?: string | null;
+    newValue?: string | null;
+    source?: ActivitySource;
+    metadata?: Record<string, any> | null;
+  },
+  actionOrDb?: string | DatabaseSync,
+  relatedTaskId?: string | null,
   previousValue: string | null = null,
   newValue: string | null = null,
   source: ActivitySource = 'application',
   metadata: Record<string, any> | null = null,
-  db = getDb()
+  dbPassed?: DatabaseSync
 ): ActivityEvent {
+  let actorId: string | null = null;
+  let action = '';
+  let taskId: string | null = null;
+  let prevVal: string | null = null;
+  let newVal: string | null = null;
+  let src: ActivitySource = 'application';
+  let meta: Record<string, any> | null = null;
+  let db: DatabaseSync;
+
+  if (typeof actorIdOrOptions === 'object' && actorIdOrOptions !== null) {
+    actorId = actorIdOrOptions.actorId || null;
+    action = actorIdOrOptions.action;
+    taskId = actorIdOrOptions.relatedTaskId || null;
+    prevVal = actorIdOrOptions.previousValue || null;
+    newVal = actorIdOrOptions.newValue || null;
+    src = actorIdOrOptions.source || 'application';
+    meta = actorIdOrOptions.metadata || null;
+    db = (actionOrDb as DatabaseSync) || getDb();
+  } else {
+    actorId = actorIdOrOptions;
+    action = (actionOrDb as string) || '';
+    taskId = relatedTaskId || null;
+    prevVal = previousValue;
+    newVal = newValue;
+    src = source;
+    meta = metadata;
+    db = dbPassed || getDb();
+  }
+
   const eventId = `act_${Date.now()}_${uuidv4().slice(0, 8)}`;
   const now = new Date().toISOString();
-  const metadataJson = metadata ? JSON.stringify(metadata) : null;
+  const metadataJson = meta ? JSON.stringify(meta) : null;
 
   const stmt = db.prepare(`
     INSERT INTO activity_events (id, actor_id, action, related_task_id, previous_value, new_value, source, metadata_json, created_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
-  stmt.run(eventId, actorId, action, relatedTaskId, previousValue, newValue, source, metadataJson, now);
+  stmt.run(eventId, actorId, action, taskId, prevVal, newVal, src, metadataJson, now);
 
   return {
     id: eventId,
     actor_id: actorId,
     action,
-    related_task_id: relatedTaskId,
-    previous_value: previousValue,
-    new_value: newValue,
-    source,
+    related_task_id: taskId,
+    previous_value: prevVal,
+    new_value: newVal,
+    source: src,
     metadata_json: metadataJson,
     created_at: now
   };

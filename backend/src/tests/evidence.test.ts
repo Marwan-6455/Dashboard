@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import bcrypt from 'bcryptjs';
 import { SCHEMA_SQL } from '../db/schema.js';
+import { runMigrations } from '../db/migrations.js';
 import { getDb } from '../db/connection.js';
 import { app } from '../app.js';
 
@@ -16,6 +17,7 @@ describe('Evidence Upload Validation & Security', () => {
     const db = getDb();
     db.exec('PRAGMA foreign_keys = ON;');
     db.exec(SCHEMA_SQL);
+    runMigrations(db);
 
     const now = new Date().toISOString();
     const hash = bcrypt.hashSync('Terminal6#Studio', 10);

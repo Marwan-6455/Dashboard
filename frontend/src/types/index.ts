@@ -244,6 +244,14 @@ export interface Task {
   is_test_exempt: number;
   test_exemption_reason: string | null;
   test_exempt_approved_by: string | null;
+  is_deadline_exempt?: number;
+  deadline_exemption_reason?: string | null;
+  deadline_exempt_approved_by?: string | null;
+  extended_deadline?: string | null;
+  deadline_extension_reason?: string | null;
+  deadline_extension_approved_by?: string | null;
+  reassignment_required?: number;
+  reassignment_reason?: string | null;
   completed_at: string | null;
   created_at: string;
   updated_at: string;
@@ -277,3 +285,86 @@ export interface DashboardMetrics {
   failedTests: number;
   passedTests: number;
 }
+
+export type StrikeStatus = 'active' | 'disputed' | 'reversed' | 'excused';
+
+export interface Strike {
+  id: string;
+  workspace_id: string;
+  user_id: string;
+  task_id: string;
+  applicable_deadline: string;
+  detected_at: string;
+  reason: string;
+  status: StrikeStatus;
+  evidence_references?: string | null;
+  notification_history_json?: string | null;
+  appeal_reason?: string | null;
+  appealed_at?: string | null;
+  appeal_outcome?: string | null;
+  reviewed_by?: string | null;
+  reviewed_at?: string | null;
+  reversed_by?: string | null;
+  reversed_at?: string | null;
+  reversal_reason?: string | null;
+  policy_snapshot_json?: string;
+  created_at: string;
+  updated_at: string;
+  task_title?: string;
+  task_priority?: Priority;
+  task_status?: TaskStatus;
+  member_name?: string;
+  member_username?: string;
+  reversed_by_name?: string;
+}
+
+export interface StrikePolicy {
+  strike_threshold: number;
+  grace_period_hours: number;
+  timezone: string;
+  manager_escalation_enabled: boolean;
+  discord_dm_enabled: boolean;
+  allow_member_disputes: boolean;
+  reinstatement_requires_admin: boolean;
+  warning_templates?: {
+    first_warning?: string;
+    second_warning?: string;
+    escalation?: string;
+    final_warning?: string;
+    suspended?: string;
+  };
+}
+
+export type WarningLevel = 'none' | 'first_warning' | 'second_warning' | 'escalation' | 'final_warning' | 'suspended';
+
+export interface WorkspaceEntryWarning {
+  activeStrikes: number;
+  maxThreshold: number;
+  remainingStrikes: number;
+  warningLevel: WarningLevel;
+  isSuspended: boolean;
+  showWarning: boolean;
+  strikes: Strike[];
+  discordDmStatus: 'delivered' | 'failed' | 'skipped' | 'not_linked';
+  discordError?: string | null;
+  message: string;
+}
+
+export interface StrikeOverviewMember {
+  id: string;
+  username: string;
+  display_name: string;
+  email: string;
+  avatar_url?: string | null;
+  workspace_role: string;
+  is_suspended: number;
+  suspended_at?: string | null;
+  suspension_reason?: string | null;
+  discord_username?: string | null;
+  discord_user_id?: string | null;
+  active_strikes: number;
+  disputed_strikes: number;
+  total_strikes: number;
+  open_tasks: number;
+}
+

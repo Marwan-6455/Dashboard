@@ -405,6 +405,12 @@ export function updateTask(
     isTestExempt: boolean;
     testExemptionReason: string | null;
     testExemptApprovedBy: string | null;
+    isDeadlineExempt: boolean;
+    deadlineExemptionReason: string | null;
+    deadlineExemptApprovedBy: string | null;
+    extendedDeadline: string | null;
+    deadlineExtensionReason: string | null;
+    deadlineExtensionApprovedBy: string | null;
   }>,
   actorId: string,
   db = getDb()
@@ -438,6 +444,12 @@ export function updateTask(
       is_test_exempt = COALESCE(?, is_test_exempt),
       test_exemption_reason = ?,
       test_exempt_approved_by = ?,
+      is_deadline_exempt = COALESCE(?, is_deadline_exempt),
+      deadline_exemption_reason = ?,
+      deadline_exempt_approved_by = ?,
+      extended_deadline = ?,
+      deadline_extension_reason = ?,
+      deadline_extension_approved_by = ?,
       updated_at = ?
     WHERE id = ?
   `);
@@ -462,9 +474,20 @@ export function updateTask(
     updates.isTestExempt !== undefined ? (updates.isTestExempt ? 1 : 0) : null,
     updates.testExemptionReason !== undefined ? updates.testExemptionReason : existing.test_exemption_reason,
     updates.testExemptApprovedBy !== undefined ? updates.testExemptApprovedBy : existing.test_exempt_approved_by,
+    updates.isDeadlineExempt !== undefined ? (updates.isDeadlineExempt ? 1 : 0) : null,
+    updates.deadlineExemptionReason !== undefined ? updates.deadlineExemptionReason : existing.deadline_exemption_reason,
+    updates.deadlineExemptApprovedBy !== undefined ? updates.deadlineExemptApprovedBy : existing.deadline_exempt_approved_by,
+    updates.extendedDeadline !== undefined ? updates.extendedDeadline : existing.extended_deadline,
+    updates.deadlineExtensionReason !== undefined ? updates.deadlineExtensionReason : existing.deadline_extension_reason,
+    updates.deadlineExtensionApprovedBy !== undefined ? updates.deadlineExtensionApprovedBy : existing.deadline_extension_approved_by,
     now,
     taskId
   );
+
+  // If task had reassignment_required and owner was changed, clear reassignment_required
+  if (existing.reassignment_required === 1 && updates.ownerId !== undefined && updates.ownerId !== existing.owner_id) {
+    db.prepare('UPDATE tasks SET reassignment_required = 0, reassignment_reason = NULL WHERE id = ?').run(taskId);
+  }
 
   // Check changed fields and record activity & notifications
   if (updates.priority && updates.priority !== existing.priority) {

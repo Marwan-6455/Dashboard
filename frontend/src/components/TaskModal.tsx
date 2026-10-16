@@ -50,6 +50,8 @@ export const TaskModal: React.FC<TaskModalProps> = ({
   const [changesetExemptionReason, setChangesetExemptionReason] = useState('');
   const [isTestExempt, setIsTestExempt] = useState(false);
   const [testExemptionReason, setTestExemptionReason] = useState('');
+  const [isDeadlineExempt, setIsDeadlineExempt] = useState(false);
+  const [deadlineExemptionReason, setDeadlineExemptionReason] = useState('');
 
   useEffect(() => {
     if (taskToEdit) {
@@ -77,6 +79,8 @@ export const TaskModal: React.FC<TaskModalProps> = ({
       setChangesetExemptionReason(taskToEdit.changeset_exemption_reason || '');
       setIsTestExempt(taskToEdit.is_test_exempt === 1);
       setTestExemptionReason(taskToEdit.test_exemption_reason || '');
+      setIsDeadlineExempt(taskToEdit.is_deadline_exempt === 1);
+      setDeadlineExemptionReason(taskToEdit.deadline_exemption_reason || '');
       setCriteria([]);
     } else {
       setTitle('');
@@ -94,6 +98,8 @@ export const TaskModal: React.FC<TaskModalProps> = ({
       setChangesetExemptionReason('');
       setIsTestExempt(false);
       setTestExemptionReason('');
+      setIsDeadlineExempt(false);
+      setDeadlineExemptionReason('');
       setCriteria(['']);
     }
     setError(null);
@@ -144,7 +150,9 @@ export const TaskModal: React.FC<TaskModalProps> = ({
             isChangesetExempt,
             changesetExemptionReason: isChangesetExempt ? changesetExemptionReason : null,
             isTestExempt,
-            testExemptionReason: isTestExempt ? testExemptionReason : null
+            testExemptionReason: isTestExempt ? testExemptionReason : null,
+            isDeadlineExempt,
+            deadlineExemptionReason: isDeadlineExempt ? deadlineExemptionReason : null
           })
         });
       } else {
@@ -444,6 +452,28 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                         placeholder="Document valid exemption reason..."
                         value={testExemptionReason}
                         onChange={(e) => setTestExemptionReason(e.target.value)}
+                        style={{ marginTop: '6px' }}
+                        required
+                      />
+                    )}
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={isDeadlineExempt}
+                        onChange={(e) => setIsDeadlineExempt(e.target.checked)}
+                      />
+                      <span style={{ fontSize: '13px' }}>Exempt from Deadline Accountability Strikes</span>
+                    </label>
+                    {isDeadlineExempt && (
+                      <input
+                        type="text"
+                        className="form-control"
+                        placeholder="Document valid deadline exemption reason..."
+                        value={deadlineExemptionReason}
+                        onChange={(e) => setDeadlineExemptionReason(e.target.value)}
                         style={{ marginTop: '6px' }}
                         required
                       />

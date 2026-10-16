@@ -7,6 +7,7 @@ exports.createSession = createSession;
 exports.destroySession = destroySession;
 exports.authMiddleware = authMiddleware;
 exports.requireRole = requireRole;
+exports.checkWorkspaceSuspension = checkWorkspaceSuspension;
 const node_crypto_1 = __importDefault(require("node:crypto"));
 const connection_js_1 = require("../db/connection.js");
 const SESSION_SECRET = process.env.SESSION_SECRET || 'cindermarch-terminal-6-secret-dev-key';
@@ -40,7 +41,9 @@ function destroySession(sessionToken) {
     catch { }
 }
 function authMiddleware(req, res, next) {
-    const sessionToken = req.cookies?.cm_session || req.headers['x-session-token'];
+    const authHeader = req.headers['authorization'];
+    const bearerToken = typeof authHeader === 'string' && authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : undefined;
+    const sessionToken = req.cookies?.cm_session || req.headers['x-session-token'] || bearerToken;
     if (!sessionToken || typeof sessionToken !== 'string') {
         res.status(401).json({ error: 'Authentication required. Please log in.' });
         return;
@@ -90,12 +93,42 @@ function authMiddleware(req, res, next) {
         if (!apiKey) {
             const csrfHeader = req.headers['x-csrf-token'];
             const csrfCookie = req.cookies?.cm_csrf;
-            // Allow if valid csrf token provided in header or cookie match
-            if (!csrfHeader && !csrfCookie && !req.headers['x-session-token']) {
+            // Allow if valid csrf token provided in header or cookie match or token-based auth
+            if (!csrfHeader && !csrfCookie && !req.headers['x-session-token'] && !bearerToken) {
                 // If neither is present and it's a browser session, verify csrf
                 res.status(403).json({ error: 'Invalid or missing CSRF token.' });
                 return;
             }
+        }
+    }
+    // Workspace suspension check for protected workspace resources
+    const url = (req.baseUrl || '') + (req.path || '');
+    if (!url.startsWith('/api/auth') &&
+        !url.startsWith('/api/strikes/my-status') &&
+        !url.startsWith('/api/strikes/workspace-entry') &&
+        !url.includes('/dispute') &&
+        !url.startsWith('/api/bot') &&
+        !url.startsWith('/health')) {
+        const workspaceId = user.workspace_id || 'ws_cindermarch';
+        const db = (0, connection_js_1.getDb)();
+        try {
+            const member = db.prepare(`
+        SELECT is_suspended, suspension_reason, suspended_at
+        FROM workspace_members
+        WHERE workspace_id = ? AND user_id = ?
+      `).get(workspaceId, user.id);
+            if (member && member.is_suspended === 1) {
+                res.status(403).json({
+                    error: 'Workspace membership suspended due to deadline strikes policy.',
+                    isSuspended: true,
+                    suspensionReason: member.suspension_reason || 'Exceeded maximum deadline strikes threshold.',
+                    suspendedAt: member.suspended_at
+                });
+                return;
+            }
+        }
+        catch {
+            // Graceful fallback if table/column in migration is pending
         }
     }
     next();
@@ -121,4 +154,36 @@ function requireRole(allowedRoles) {
             res.status(403).json({ error: 'Malformed user role permissions.' });
         }
     };
+}
+function checkWorkspaceSuspension(req, res, next) {
+    if (!req.user) {
+        return next();
+    }
+    const url = (req.baseUrl || '') + (req.path || '');
+    // Allow essential routes for suspended users: auth, strike status, workspace entry warning, and disputes
+    if (url.startsWith('/api/auth') ||
+        url.startsWith('/api/strikes/my-status') ||
+        url.startsWith('/api/strikes/workspace-entry') ||
+        url.includes('/dispute') ||
+        url.startsWith('/api/bot') ||
+        url.startsWith('/health')) {
+        return next();
+    }
+    const workspaceId = req.user.workspace_id || 'ws_cindermarch';
+    const db = (0, connection_js_1.getDb)();
+    const member = db.prepare(`
+    SELECT is_suspended, suspension_reason, suspended_at
+    FROM workspace_members
+    WHERE workspace_id = ? AND user_id = ?
+  `).get(workspaceId, req.user.id);
+    if (member && member.is_suspended === 1) {
+        res.status(403).json({
+            error: 'Workspace membership suspended due to deadline strikes policy.',
+            isSuspended: true,
+            suspensionReason: member.suspension_reason || 'Exceeded maximum deadline strikes threshold.',
+            suspendedAt: member.suspended_at
+        });
+        return;
+    }
+    next();
 }

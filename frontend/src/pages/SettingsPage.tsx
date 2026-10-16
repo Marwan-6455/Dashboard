@@ -3,7 +3,11 @@ import { Settings, Shield, RefreshCw, AlertTriangle, CheckCircle2 } from 'lucide
 import { useAuth } from '../context/AuthContext.js';
 import { apiRequest } from '../api/client.js';
 
-export const SettingsPage: React.FC = () => {
+interface SettingsPageProps {
+  onNavigate?: (page: string) => void;
+}
+
+export const SettingsPage: React.FC<SettingsPageProps> = ({ onNavigate }) => {
   const { hasRole } = useAuth();
   const isAdmin = hasRole('admin');
 
@@ -17,6 +21,7 @@ export const SettingsPage: React.FC = () => {
     allowTestExemptions: true
   });
   const [health, setHealth] = useState<any>(null);
+  const [strikePolicy, setStrikePolicy] = useState<any>(null);
   const [isSavingGates, setIsSavingGates] = useState(false);
   const [isReseeding, setIsReseeding] = useState(false);
   const [reseedConfirm, setResetConfirm] = useState('');
@@ -24,11 +29,15 @@ export const SettingsPage: React.FC = () => {
 
   const fetchSettings = async () => {
     try {
-      const gatesRes = await apiRequest('/api/settings/gates');
-      setGateConfig(gatesRes.completionGates || {});
+      const [gatesRes, healthRes, policyRes] = await Promise.allSettled([
+        apiRequest('/api/settings/gates'),
+        apiRequest('/api/settings/health'),
+        apiRequest('/api/strikes/policy')
+      ]);
 
-      const healthRes = await apiRequest('/api/settings/health');
-      setHealth(healthRes);
+      if (gatesRes.status === 'fulfilled') setGateConfig(gatesRes.value.completionGates || {});
+      if (healthRes.status === 'fulfilled') setHealth(healthRes.value);
+      if (policyRes.status === 'fulfilled') setStrikePolicy(policyRes.value.policy);
     } catch (err) {
       console.error(err);
     }
@@ -160,8 +169,57 @@ export const SettingsPage: React.FC = () => {
           </form>
         </div>
 
-        {/* System Health Diagnostics */}
+        {/* Right Column */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+          {/* Deadline Strikes & Suspension Governance Policy */}
+          <div className="card" style={{ borderColor: 'rgba(239, 68, 68, 0.3)' }}>
+            <div className="card-header">
+              <div className="card-title">
+                <AlertTriangle size={18} color="#EF4444" />
+                <span>Deadline Strikes & Suspension Governance</span>
+              </div>
+              <span className="badge badge-changes-requested">5-STRIKE AUTO-SUSPENSION</span>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '13px', marginBottom: '16px' }}>
+              <div>
+                <span style={{ color: 'var(--text-secondary)' }}>Strike Threshold:</span>{' '}
+                <strong className="mono">{strikePolicy?.max_strikes_threshold || 5} strikes</strong> (Automatic workspace suspension)
+              </div>
+              <div>
+                <span style={{ color: 'var(--text-secondary)' }}>Grace Period:</span>{' '}
+                <strong className="mono">{strikePolicy?.grace_period_hours || 24} hours</strong> after task deadline
+              </div>
+              <div>
+                <span style={{ color: 'var(--text-secondary)' }}>Timezone:</span>{' '}
+                <strong className="mono">{strikePolicy?.timezone || 'Africa/Cairo'}</strong>
+              </div>
+              <div>
+                <span style={{ color: 'var(--text-secondary)' }}>Discord DM Warnings:</span>{' '}
+                <span className="badge badge-verified-complete" style={{ fontSize: '11px' }}>
+                  {strikePolicy?.discord_dm_enabled !== false ? 'ENABLED' : 'DISABLED'}
+                </span>
+              </div>
+              <div>
+                <span style={{ color: 'var(--text-secondary)' }}>Workspace-Entry Warning:</span>{' '}
+                <span className="badge badge-verified-complete" style={{ fontSize: '11px' }}>
+                  {strikePolicy?.workspace_entry_modal_enabled !== false ? 'ACTIVE (DEDUPLICATED)' : 'DISABLED'}
+                </span>
+              </div>
+            </div>
+
+            {onNavigate && (
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={() => onNavigate('strikes')}
+                style={{ width: '100%', justifyContent: 'center' }}
+              >
+                Open Studio Strikes & Governance Portal
+              </button>
+            )}
+          </div>
+
+          {/* System Health Diagnostics */}
           <div className="card">
             <div className="card-header">
               <div className="card-title">

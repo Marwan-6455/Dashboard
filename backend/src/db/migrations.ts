@@ -358,5 +358,142 @@ export function runMigrations(db: DatabaseSync): void {
       console.error('Error applying migration 005:', err);
     }
   }
+
+  // Migration 006: Deadline Strikes, Workspace-Entry Warnings & Automatic Suspension
+  const m6 = stmt.get('006_deadline_strikes_and_suspensions');
+  if (!m6) {
+    try {
+      const addCol = (table: string, colDef: string) => {
+        try {
+          db.exec(`ALTER TABLE ${table} ADD COLUMN ${colDef}`);
+        } catch {}
+      };
+
+      addCol('workspace_members', 'is_suspended INTEGER NOT NULL DEFAULT 0');
+      addCol('workspace_members', 'suspended_at TEXT');
+      addCol('workspace_members', 'suspension_reason TEXT');
+      addCol('workspace_members', 'reinstated_at TEXT');
+      addCol('workspace_members', 'reinstated_by TEXT');
+      addCol('workspace_members', 'reinstatement_reason TEXT');
+
+      addCol('tasks', 'is_deadline_exempt INTEGER NOT NULL DEFAULT 0');
+      addCol('tasks', 'deadline_exemption_reason TEXT');
+      addCol('tasks', 'deadline_exempt_approved_by TEXT');
+      addCol('tasks', 'extended_deadline TEXT');
+      addCol('tasks', 'deadline_extension_reason TEXT');
+      addCol('tasks', 'deadline_extension_approved_by TEXT');
+      addCol('tasks', 'reassignment_required INTEGER NOT NULL DEFAULT 0');
+      addCol('tasks', 'reassignment_reason TEXT');
+
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS strikes (
+          id TEXT PRIMARY KEY,
+          workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+          user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+          applicable_deadline TEXT NOT NULL,
+          detected_at TEXT NOT NULL,
+          reason TEXT NOT NULL,
+          status TEXT NOT NULL CHECK(status IN ('active', 'disputed', 'reversed', 'excused')) DEFAULT 'active',
+          evidence_references TEXT,
+          notification_history_json TEXT,
+          appeal_reason TEXT,
+          appealed_at TEXT,
+          appeal_outcome TEXT,
+          reviewed_by TEXT REFERENCES users(id),
+          reviewed_at TEXT,
+          reversed_by TEXT REFERENCES users(id),
+          reversed_at TEXT,
+          reversal_reason TEXT,
+          policy_snapshot_json TEXT NOT NULL,
+          idempotency_key TEXT UNIQUE NOT NULL,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_strikes_ws_user ON strikes(workspace_id, user_id, status);
+        CREATE INDEX IF NOT EXISTS idx_strikes_task ON strikes(task_id);
+        CREATE INDEX IF NOT EXISTS idx_strikes_idempotency ON strikes(idempotency_key);
+
+        CREATE TABLE IF NOT EXISTS workspace_entry_events (
+          id TEXT PRIMARY KEY,
+          workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+          user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          session_id TEXT NOT NULL,
+          active_strike_count INTEGER NOT NULL,
+          warning_level TEXT NOT NULL,
+          discord_dm_status TEXT NOT NULL CHECK(discord_dm_status IN ('delivered', 'failed', 'skipped', 'not_linked')),
+          discord_error TEXT,
+          discord_message_id TEXT,
+          entered_at TEXT NOT NULL,
+          UNIQUE(workspace_id, user_id, session_id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_wee_ws_user ON workspace_entry_events(workspace_id, user_id);
+        CREATE INDEX IF NOT EXISTS idx_wee_session ON workspace_entry_events(session_id);
+
+        CREATE TABLE IF NOT EXISTS strike_threshold_notifications (
+          id TEXT PRIMARY KEY,
+          workspace_id TEXT NOT NULL,
+          user_id TEXT NOT NULL,
+          threshold_level INTEGER NOT NULL,
+          strike_id TEXT NOT NULL,
+          channel TEXT NOT NULL,
+          status TEXT NOT NULL,
+          error TEXT,
+          notified_at TEXT NOT NULL,
+          UNIQUE(workspace_id, user_id, threshold_level, strike_id, channel)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_stn_user ON strike_threshold_notifications(workspace_id, user_id, threshold_level);
+
+        CREATE TABLE IF NOT EXISTS workspace_suspensions (
+          id TEXT PRIMARY KEY,
+          workspace_id TEXT NOT NULL,
+          user_id TEXT NOT NULL,
+          strike_count_at_suspension INTEGER NOT NULL,
+          status TEXT NOT NULL CHECK(status IN ('active', 'reinstated')) DEFAULT 'active',
+          reason TEXT NOT NULL,
+          suspended_at TEXT NOT NULL,
+          reinstated_at TEXT,
+          reinstated_by TEXT REFERENCES users(id),
+          reinstatement_reason TEXT
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_ws_user ON workspace_suspensions(workspace_id, user_id);
+      `);
+
+      // Seed default strike policy into settings
+      const now = new Date().toISOString();
+      const defaultPolicy = {
+        strike_threshold: 5,
+        grace_period_hours: 24,
+        timezone: 'Africa/Cairo',
+        manager_escalation_enabled: true,
+        discord_dm_enabled: true,
+        allow_member_disputes: true,
+        reinstatement_requires_admin: true,
+        warning_templates: {
+          first_warning: 'DEADLINE WARNING — You currently have 1 of 5 strikes. A task deadline was missed. Review the task and keep future deadlines on track.',
+          second_warning: 'DEADLINE WARNING — You currently have 2 of 5 strikes. Ensure outstanding deadlines are managed promptly.',
+          escalation: 'DEADLINE ALERT — You currently have 3 of 5 strikes. Repeated missed deadlines may lead to workspace suspension. Please review your outstanding tasks and upcoming deadlines.',
+          final_warning: 'FINAL WARNING — You currently have 4 of 5 strikes. One additional qualifying missed deadline will trigger workspace suspension under the current policy. Review your deadlines immediately.',
+          suspended: 'WORKSPACE SUSPENDED — Your account has reached the five-strike threshold. Workspace access is suspended. Contact the Workspace Owner/Admin to request a review.'
+        }
+      };
+
+      db.prepare(`
+        INSERT OR IGNORE INTO settings (key, value_json, updated_at)
+        VALUES ('strike_policy', ?, ?)
+      `).run(JSON.stringify(defaultPolicy), now);
+
+      db.prepare('INSERT INTO _migrations (name, applied_at) VALUES (?, ?)').run(
+        '006_deadline_strikes_and_suspensions',
+        new Date().toISOString()
+      );
+    } catch (err) {
+      console.error('Error applying migration 006:', err);
+    }
+  }
 }
 

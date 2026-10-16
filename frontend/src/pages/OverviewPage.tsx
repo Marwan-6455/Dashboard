@@ -7,7 +7,8 @@ import {
   Clock,
   ExternalLink,
   ShieldAlert,
-  ArrowRight
+  ArrowRight,
+  AlertTriangle
 } from 'lucide-react';
 import { StatusBadge } from '../components/StatusBadge.js';
 import { PriorityBadge } from '../components/PriorityBadge.js';
@@ -20,14 +21,27 @@ interface OverviewPageProps {
 
 export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate, onOpenNewTaskModal }) => {
   const [data, setData] = useState<any>(null);
+  const [myStrikes, setMyStrikes] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const loadData = async () => {
     try {
       setIsLoading(true);
-      const res = await apiRequest('/api/stats/overview');
-      setData(res);
+      const [statsRes, strikeRes] = await Promise.allSettled([
+        apiRequest('/api/stats/overview'),
+        apiRequest('/api/strikes/my-status')
+      ]);
+
+      if (statsRes.status === 'fulfilled') {
+        setData(statsRes.value);
+      } else {
+        throw statsRes.reason;
+      }
+
+      if (strikeRes.status === 'fulfilled') {
+        setMyStrikes(strikeRes.value);
+      }
       setError(null);
     } catch (err: any) {
       setError(err.message);
@@ -81,6 +95,88 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate, onOpenNe
         </div>
       </div>
 
+      {/* Active Strike Personalized Warning Banner */}
+      {myStrikes && myStrikes.activeStrikes > 0 && (
+        <div
+          style={{
+            marginBottom: '20px',
+            padding: '16px 20px',
+            backgroundColor:
+              myStrikes.activeStrikes >= 4 ? 'rgba(239, 68, 68, 0.12)' : 'rgba(245, 158, 11, 0.12)',
+            border: `1px solid ${
+              myStrikes.activeStrikes >= 4 ? 'rgba(239, 68, 68, 0.4)' : 'rgba(245, 158, 11, 0.4)'
+            }`,
+            borderRadius: 'var(--radius-md)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '16px',
+            flexWrap: 'wrap'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+            <div
+              style={{
+                width: '40px',
+                height: '40px',
+                borderRadius: '8px',
+                backgroundColor:
+                  myStrikes.activeStrikes >= 4 ? 'rgba(239, 68, 68, 0.2)' : 'rgba(245, 158, 11, 0.2)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: myStrikes.activeStrikes >= 4 ? '#EF4444' : '#F59E0B'
+              }}
+            >
+              <AlertTriangle size={22} />
+            </div>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
+                <span
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    letterSpacing: '0.05em',
+                    color: myStrikes.activeStrikes >= 4 ? '#EF4444' : '#F59E0B'
+                  }}
+                >
+                  {myStrikes.activeStrikes >= 4 ? 'CRITICAL DISCIPLINARY ALERT' : 'DEADLINE ACCOUNTABILITY NOTICE'}
+                </span>
+                <span
+                  style={{
+                    padding: '2px 8px',
+                    borderRadius: '10px',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    backgroundColor:
+                      myStrikes.activeStrikes >= 4 ? 'rgba(239, 68, 68, 0.2)' : 'rgba(245, 158, 11, 0.2)',
+                    color: myStrikes.activeStrikes >= 4 ? '#EF4444' : '#F59E0B'
+                  }}
+                >
+                  {myStrikes.activeStrikes} OF {myStrikes.maxStrikes} STRIKES ({myStrikes.remainingStrikes} REMAINING)
+                </span>
+              </div>
+              <div style={{ fontSize: '13px', color: 'var(--text-white)' }}>
+                {myStrikes.activeStrikes >= 4
+                  ? 'FINAL WARNING: One more qualifying missed deadline will immediately trigger automatic workspace suspension.'
+                  : `You currently have ${myStrikes.activeStrikes} active deadline strike(s). Keep upcoming milestone deliverables on track.`}
+              </div>
+            </div>
+          </div>
+
+          <button
+            className="btn btn-secondary btn-sm"
+            onClick={() => onNavigate('strikes')}
+            style={{
+              borderColor: myStrikes.activeStrikes >= 4 ? '#EF4444' : '#F59E0B',
+              color: myStrikes.activeStrikes >= 4 ? '#EF4444' : '#F59E0B'
+            }}
+          >
+            Review Strike Details <ArrowRight size={13} style={{ marginLeft: '4px' }} />
+          </button>
+        </div>
+      )}
+
       {/* Integration Status Bar */}
       <div
         style={{
@@ -121,6 +217,23 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate, onOpenNe
               {integrations.discord?.status === 'configured' || integrations.discord?.status === 'operational'
                 ? 'CONFIGURED (TOKEN READY)'
                 : 'NOT CONFIGURED'}
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12.5px' }}>
+            <span style={{ color: 'var(--text-secondary)' }}>Strike Policy:</span>
+            <span
+              className={`badge ${
+                data.disciplinary?.suspendedMembersCount > 0
+                  ? 'badge-blocked'
+                  : (data.disciplinary?.activeStrikesCount || 0) > 0
+                  ? 'badge-changes-requested'
+                  : 'badge-verified-complete'
+              }`}
+              style={{ cursor: 'pointer' }}
+              onClick={() => onNavigate('strikes')}
+            >
+              5-STRIKES AUTO-SUSPEND ({(data.disciplinary?.activeStrikesCount || 0)} ACTIVE)
             </span>
           </div>
         </div>
@@ -324,19 +437,38 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate, onOpenNe
                     onClick={() => onNavigate('tasks', { taskId: t.id })}
                   >
                     <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px', flexWrap: 'wrap' }}>
                         <span className="mono" style={{ fontSize: '12px', color: 'var(--accent-orange)', fontWeight: 600 }}>
                           {t.id}
                         </span>
                         <PriorityBadge priority={t.priority} />
                         <StatusBadge status={t.status} />
+                        {t.is_deadline_exempt === 1 && (
+                          <span className="badge badge-verified-complete" style={{ fontSize: '10px' }}>
+                            POLICY EXEMPT
+                          </span>
+                        )}
+                        {t.extended_deadline && (
+                          <span className="badge badge-changes-requested" style={{ fontSize: '10px' }}>
+                            EXTENDED
+                          </span>
+                        )}
+                        {t.reassignment_required === 1 && (
+                          <span className="badge badge-blocked" style={{ fontSize: '10px' }}>
+                            REASSIGNMENT
+                          </span>
+                        )}
                       </div>
                       <div style={{ fontSize: '13px', color: 'var(--text-white)', fontWeight: 500 }}>
                         {t.title}
                       </div>
                     </div>
                     <div style={{ textAlign: 'right', fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)' }}>
-                      {new Date(t.deadline).toLocaleDateString()}
+                      {t.extended_deadline
+                        ? `Ext: ${new Date(t.extended_deadline).toLocaleDateString()}`
+                        : t.deadline
+                        ? new Date(t.deadline).toLocaleDateString()
+                        : 'No deadline'}
                     </div>
                   </div>
                 ))}

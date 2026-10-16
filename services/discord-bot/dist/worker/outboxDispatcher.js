@@ -19,6 +19,28 @@ export async function processOutboxQueue(client) {
             catch {
                 payload = {};
             }
+            // If target is direct message (DM), send to recipient
+            if (event.target_channel_type === 'dm' && payload.recipientDiscordId) {
+                try {
+                    const user = await client.users.fetch(payload.recipientDiscordId).catch(() => null);
+                    if (user) {
+                        const embed = createEmbedForEvent(event.event_type, payload);
+                        await user.send({ content: payload.content || undefined, embeds: [embed] });
+                        await hubClient.ackOutbox(event.id, true);
+                        console.log(`[Outbox] Delivered DM for event ${event.id} (${event.event_type}) to @${user.tag}`);
+                        continue;
+                    }
+                    else {
+                        await hubClient.ackOutbox(event.id, false, `Discord user ${payload.recipientDiscordId} not found.`);
+                        continue;
+                    }
+                }
+                catch (dmErr) {
+                    console.warn(`[Outbox] Failed to deliver DM for event ${event.id}:`, dmErr.message);
+                    await hubClient.ackOutbox(event.id, false, dmErr.message);
+                    continue;
+                }
+            }
             // Determine target channel ID from guild config
             let targetChannelId = null;
             if (guildConfig) {
@@ -149,6 +171,46 @@ function createEmbedForEvent(eventType, payload) {
                 `Runner: *${payload.runnerIdentity}*`)
                 .setColor(payload.result === 'Passed' ? CONFIG.COLORS.SUCCESS : CONFIG.COLORS.DANGER)
                 .setFooter({ text: `${CONFIG.STUDIO.NAME} // Unity UTF CI Ingestion` });
+        case 'workspace_entry_warning':
+        case 'strike_warning':
+        case 'threshold_warning':
+            return embed
+                .setTitle(`⚠️ ${payload.title || 'Cindermarch Deadline Warning'}`)
+                .setURL(`${CONFIG.HUB_WEB_URL}/tasks`)
+                .setDescription(payload.message || payload.content || 'Active deadline strike notification.')
+                .setColor(payload.activeStrikes >= 5
+                ? CONFIG.COLORS.DANGER
+                : payload.activeStrikes === 4
+                    ? CONFIG.COLORS.DANGER
+                    : CONFIG.COLORS.WARNING)
+                .addFields({ name: 'Active Strikes', value: `\`${payload.activeStrikes || 0} / ${payload.maxThreshold || 5}\``, inline: true }, { name: 'Remaining Strikes', value: `\`${payload.remainingStrikes ?? 'N/A'}\``, inline: true }, { name: 'Policy Action', value: payload.activeStrikes >= 5 ? '🛑 Workspace Suspended' : '⚠️ Keep Deadlines on Track', inline: true })
+                .setFooter({ text: `${CONFIG.STUDIO.NAME} // Deadline Accountability System` });
+        case 'strike_reversed':
+            return embed
+                .setTitle(`⚖️ Strike Reversed // [${payload.taskId || payload.strikeId}]`)
+                .setURL(`${CONFIG.HUB_WEB_URL}/tasks`)
+                .setDescription(`A deadline strike has been formally reversed by studio administration.\nReason: *${payload.reason}*`)
+                .setColor(CONFIG.COLORS.SUCCESS)
+                .addFields({ name: 'Current Active Strikes', value: `\`${payload.currentActiveStrikes}\``, inline: true })
+                .setFooter({ text: `${CONFIG.STUDIO.NAME} // Administrative Strike Audit Trail` });
+        case 'member_suspended':
+            return embed
+                .setTitle(`🛑 WORKSPACE SUSPENSION ALERT // ${payload.userId}`)
+                .setURL(`${CONFIG.HUB_WEB_URL}`)
+                .setDescription(`**Workspace Access Suspended**\n` +
+                `Member has reached the 5-strike threshold.\n` +
+                `Reason: *${payload.reason}*\n\n` +
+                `Please contact the Workspace Owner/Admin to request a review.`)
+                .setColor(CONFIG.COLORS.DANGER)
+                .setFooter({ text: `${CONFIG.STUDIO.NAME} // Automatic Suspension Policy` });
+        case 'member_reinstated':
+            return embed
+                .setTitle(`✅ Workspace Access Reinstated // ${payload.userId}`)
+                .setURL(`${CONFIG.HUB_WEB_URL}`)
+                .setDescription(`Your private workspace membership has been officially reinstated by studio administration.\n` +
+                `Reason: *${payload.reason}*`)
+                .setColor(CONFIG.COLORS.SUCCESS)
+                .setFooter({ text: `${CONFIG.STUDIO.NAME} // Member Reinstatement` });
         case 'test_ping':
         default:
             return embed

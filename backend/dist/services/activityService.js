@@ -4,23 +4,51 @@ exports.recordActivity = recordActivity;
 exports.getActivities = getActivities;
 const uuid_1 = require("uuid");
 const connection_js_1 = require("../db/connection.js");
-function recordActivity(actorId, action, relatedTaskId, previousValue = null, newValue = null, source = 'application', metadata = null, db = (0, connection_js_1.getDb)()) {
+function recordActivity(actorIdOrOptions, actionOrDb, relatedTaskId, previousValue = null, newValue = null, source = 'application', metadata = null, dbPassed) {
+    let actorId = null;
+    let action = '';
+    let taskId = null;
+    let prevVal = null;
+    let newVal = null;
+    let src = 'application';
+    let meta = null;
+    let db;
+    if (typeof actorIdOrOptions === 'object' && actorIdOrOptions !== null) {
+        actorId = actorIdOrOptions.actorId || null;
+        action = actorIdOrOptions.action;
+        taskId = actorIdOrOptions.relatedTaskId || null;
+        prevVal = actorIdOrOptions.previousValue || null;
+        newVal = actorIdOrOptions.newValue || null;
+        src = actorIdOrOptions.source || 'application';
+        meta = actorIdOrOptions.metadata || null;
+        db = actionOrDb || (0, connection_js_1.getDb)();
+    }
+    else {
+        actorId = actorIdOrOptions;
+        action = actionOrDb || '';
+        taskId = relatedTaskId || null;
+        prevVal = previousValue;
+        newVal = newValue;
+        src = source;
+        meta = metadata;
+        db = dbPassed || (0, connection_js_1.getDb)();
+    }
     const eventId = `act_${Date.now()}_${(0, uuid_1.v4)().slice(0, 8)}`;
     const now = new Date().toISOString();
-    const metadataJson = metadata ? JSON.stringify(metadata) : null;
+    const metadataJson = meta ? JSON.stringify(meta) : null;
     const stmt = db.prepare(`
     INSERT INTO activity_events (id, actor_id, action, related_task_id, previous_value, new_value, source, metadata_json, created_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
-    stmt.run(eventId, actorId, action, relatedTaskId, previousValue, newValue, source, metadataJson, now);
+    stmt.run(eventId, actorId, action, taskId, prevVal, newVal, src, metadataJson, now);
     return {
         id: eventId,
         actor_id: actorId,
         action,
-        related_task_id: relatedTaskId,
-        previous_value: previousValue,
-        new_value: newValue,
-        source,
+        related_task_id: taskId,
+        previous_value: prevVal,
+        new_value: newVal,
+        source: src,
         metadata_json: metadataJson,
         created_at: now
     };

@@ -1,15 +1,45 @@
 import { v4 as uuidv4 } from 'uuid';
+import type { DatabaseSync } from 'node:sqlite';
 import { getDb } from '../db/connection.js';
 import { NotificationItem } from '../types/index.js';
 
 export function createNotification(
-  userId: string,
-  type: NotificationItem['type'],
-  title: string,
-  message: string,
+  userIdOrOptions: string | {
+    userId: string;
+    type: NotificationItem['type'];
+    title: string;
+    message: string;
+    relatedTaskId?: string | null;
+  },
+  typeOrDb?: NotificationItem['type'] | DatabaseSync,
+  title?: string,
+  message?: string,
   relatedTaskId: string | null = null,
-  db = getDb()
+  dbPassed?: DatabaseSync
 ): NotificationItem {
+  let userId = '';
+  let type: NotificationItem['type'] = 'overdue_warning';
+  let notifTitle = '';
+  let notifMessage = '';
+  let taskId: string | null = null;
+  let db: DatabaseSync;
+
+  if (typeof userIdOrOptions === 'object' && userIdOrOptions !== null) {
+    userId = userIdOrOptions.userId;
+    type = userIdOrOptions.type;
+    notifTitle = userIdOrOptions.title;
+    notifMessage = userIdOrOptions.message;
+    taskId = userIdOrOptions.relatedTaskId || null;
+    db = (typeOrDb as DatabaseSync) || getDb();
+  } else {
+    userId = userIdOrOptions;
+    type = typeOrDb as NotificationItem['type'];
+    notifTitle = title || '';
+    notifMessage = message || '';
+    taskId = relatedTaskId || null;
+    db = dbPassed || getDb();
+  }
+
   const id = `notif_${Date.now()}_${uuidv4().slice(0, 8)}`;
   const now = new Date().toISOString();
 
@@ -18,15 +48,15 @@ export function createNotification(
     VALUES (?, ?, ?, ?, ?, ?, 0, ?)
   `);
 
-  stmt.run(id, userId, type, title, message, relatedTaskId, now);
+  stmt.run(id, userId, type, notifTitle, notifMessage, taskId, now);
 
   return {
     id,
     user_id: userId,
     type,
-    title,
-    message,
-    related_task_id: relatedTaskId,
+    title: notifTitle,
+    message: notifMessage,
+    related_task_id: taskId,
     is_read: 0,
     created_at: now
   };

@@ -7,21 +7,43 @@ exports.markNotificationAsRead = markNotificationAsRead;
 exports.markAllNotificationsAsRead = markAllNotificationsAsRead;
 const uuid_1 = require("uuid");
 const connection_js_1 = require("../db/connection.js");
-function createNotification(userId, type, title, message, relatedTaskId = null, db = (0, connection_js_1.getDb)()) {
+function createNotification(userIdOrOptions, typeOrDb, title, message, relatedTaskId = null, dbPassed) {
+    let userId = '';
+    let type = 'overdue_warning';
+    let notifTitle = '';
+    let notifMessage = '';
+    let taskId = null;
+    let db;
+    if (typeof userIdOrOptions === 'object' && userIdOrOptions !== null) {
+        userId = userIdOrOptions.userId;
+        type = userIdOrOptions.type;
+        notifTitle = userIdOrOptions.title;
+        notifMessage = userIdOrOptions.message;
+        taskId = userIdOrOptions.relatedTaskId || null;
+        db = typeOrDb || (0, connection_js_1.getDb)();
+    }
+    else {
+        userId = userIdOrOptions;
+        type = typeOrDb;
+        notifTitle = title || '';
+        notifMessage = message || '';
+        taskId = relatedTaskId || null;
+        db = dbPassed || (0, connection_js_1.getDb)();
+    }
     const id = `notif_${Date.now()}_${(0, uuid_1.v4)().slice(0, 8)}`;
     const now = new Date().toISOString();
     const stmt = db.prepare(`
     INSERT INTO notifications (id, user_id, type, title, message, related_task_id, is_read, created_at)
     VALUES (?, ?, ?, ?, ?, ?, 0, ?)
   `);
-    stmt.run(id, userId, type, title, message, relatedTaskId, now);
+    stmt.run(id, userId, type, notifTitle, notifMessage, taskId, now);
     return {
         id,
         user_id: userId,
         type,
-        title,
-        message,
-        related_task_id: relatedTaskId,
+        title: notifTitle,
+        message: notifMessage,
+        related_task_id: taskId,
         is_read: 0,
         created_at: now
     };

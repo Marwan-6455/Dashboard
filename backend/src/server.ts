@@ -6,6 +6,7 @@ import { app } from './app.js';
 import { getDb } from './db/connection.js';
 import { runMigrations } from './db/migrations.js';
 import { seedDatabase } from './db/seed.js';
+import { startDeadlineStrikeWorker } from './services/strikeWorker.js';
 
 const PORT = process.env.PORT || 3001;
 
@@ -16,6 +17,9 @@ function bootstrap() {
 
   console.log('[Database] Checking initial seed data...');
   seedDatabase(db);
+
+  // Start background deadline evaluator worker
+  startDeadlineStrikeWorker(60000);
 
   app.listen(PORT, () => {
     console.log(`====================================================`);

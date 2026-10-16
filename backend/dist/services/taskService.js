@@ -305,10 +305,20 @@ function updateTask(taskId, updates, actorId, db = (0, connection_js_1.getDb)())
       is_test_exempt = COALESCE(?, is_test_exempt),
       test_exemption_reason = ?,
       test_exempt_approved_by = ?,
+      is_deadline_exempt = COALESCE(?, is_deadline_exempt),
+      deadline_exemption_reason = ?,
+      deadline_exempt_approved_by = ?,
+      extended_deadline = ?,
+      deadline_extension_reason = ?,
+      deadline_extension_approved_by = ?,
       updated_at = ?
     WHERE id = ?
   `);
-    stmt.run(updates.title ?? null, updates.description ?? null, updates.workspaceId ?? null, updates.teamId !== undefined ? updates.teamId : existing.team_id, updates.category ?? null, updates.estimatedEffort ?? null, updates.actualEffort ?? null, tagsJson, actorId, updates.ownerId !== undefined ? updates.ownerId : existing.owner_id, updates.reviewerId !== undefined ? updates.reviewerId : existing.reviewer_id, updates.priority ?? null, updates.deadline !== undefined ? updates.deadline : existing.deadline, updates.isChangesetExempt !== undefined ? (updates.isChangesetExempt ? 1 : 0) : null, updates.changesetExemptionReason !== undefined ? updates.changesetExemptionReason : existing.changeset_exemption_reason, updates.changesetExemptApprovedBy !== undefined ? updates.changesetExemptApprovedBy : existing.changeset_exempt_approved_by, updates.isTestExempt !== undefined ? (updates.isTestExempt ? 1 : 0) : null, updates.testExemptionReason !== undefined ? updates.testExemptionReason : existing.test_exemption_reason, updates.testExemptApprovedBy !== undefined ? updates.testExemptApprovedBy : existing.test_exempt_approved_by, now, taskId);
+    stmt.run(updates.title ?? null, updates.description ?? null, updates.workspaceId ?? null, updates.teamId !== undefined ? updates.teamId : existing.team_id, updates.category ?? null, updates.estimatedEffort ?? null, updates.actualEffort ?? null, tagsJson, actorId, updates.ownerId !== undefined ? updates.ownerId : existing.owner_id, updates.reviewerId !== undefined ? updates.reviewerId : existing.reviewer_id, updates.priority ?? null, updates.deadline !== undefined ? updates.deadline : existing.deadline, updates.isChangesetExempt !== undefined ? (updates.isChangesetExempt ? 1 : 0) : null, updates.changesetExemptionReason !== undefined ? updates.changesetExemptionReason : existing.changeset_exemption_reason, updates.changesetExemptApprovedBy !== undefined ? updates.changesetExemptApprovedBy : existing.changeset_exempt_approved_by, updates.isTestExempt !== undefined ? (updates.isTestExempt ? 1 : 0) : null, updates.testExemptionReason !== undefined ? updates.testExemptionReason : existing.test_exemption_reason, updates.testExemptApprovedBy !== undefined ? updates.testExemptApprovedBy : existing.test_exempt_approved_by, updates.isDeadlineExempt !== undefined ? (updates.isDeadlineExempt ? 1 : 0) : null, updates.deadlineExemptionReason !== undefined ? updates.deadlineExemptionReason : existing.deadline_exemption_reason, updates.deadlineExemptApprovedBy !== undefined ? updates.deadlineExemptApprovedBy : existing.deadline_exempt_approved_by, updates.extendedDeadline !== undefined ? updates.extendedDeadline : existing.extended_deadline, updates.deadlineExtensionReason !== undefined ? updates.deadlineExtensionReason : existing.deadline_extension_reason, updates.deadlineExtensionApprovedBy !== undefined ? updates.deadlineExtensionApprovedBy : existing.deadline_extension_approved_by, now, taskId);
+    // If task had reassignment_required and owner was changed, clear reassignment_required
+    if (existing.reassignment_required === 1 && updates.ownerId !== undefined && updates.ownerId !== existing.owner_id) {
+        db.prepare('UPDATE tasks SET reassignment_required = 0, reassignment_reason = NULL WHERE id = ?').run(taskId);
+    }
     // Check changed fields and record activity & notifications
     if (updates.priority && updates.priority !== existing.priority) {
         (0, activityService_js_1.recordActivity)(actorId, 'priority_changed', taskId, existing.priority, updates.priority, 'application', null, db);

@@ -10,7 +10,8 @@ import {
   Layers,
   Settings,
   LogOut,
-  X
+  X,
+  ShieldAlert
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.js';
 
@@ -34,6 +35,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const navItems = [
     { id: 'overview', label: 'Overview', icon: LayoutDashboard },
     { id: 'tasks', label: 'Tasks', icon: CheckSquare },
+    { id: 'strikes', label: 'Strikes & Policy', icon: ShieldAlert },
     { id: 'team', label: 'Team', icon: Users },
     { id: 'activity', label: 'Activity', icon: History, badge: unreadNotificationsCount },
     { id: 'reviews', label: 'Reviews', icon: FileCheck2 },
@@ -82,7 +84,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       <nav className="sidebar-nav">
         <div className="nav-section-label">WORKSPACE</div>
-        {navItems.slice(0, 4).map((item) => {
+        {navItems.slice(0, 5).map((item) => {
           const Icon = item.icon;
           const isActive = currentPage === item.id;
           return (
@@ -117,7 +119,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className="nav-section-label" style={{ marginTop: '8px' }}>
           QUALITY & VERIFICATION
         </div>
-        {navItems.slice(4, 7).map((item) => {
+        {navItems.slice(5, 8).map((item) => {
           const Icon = item.icon;
           const isActive = currentPage === item.id;
           return (
@@ -135,7 +137,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className="nav-section-label" style={{ marginTop: '8px' }}>
           SYSTEM
         </div>
-        {navItems.slice(7).map((item) => {
+        {navItems.slice(8).map((item) => {
           const Icon = item.icon;
           const isActive = currentPage === item.id;
           return (
