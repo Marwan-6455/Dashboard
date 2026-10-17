@@ -24,10 +24,12 @@ import {
   FolderKanban,
   Bug,
   Rocket,
-  User
+  User,
+  Send
 } from 'lucide-react';
 import { StatusBadge } from '../components/StatusBadge.js';
 import { PriorityBadge } from '../components/PriorityBadge.js';
+import { RequestTaskModal } from '../components/RequestTaskModal.js';
 import { useAuth } from '../context/AuthContext.js';
 import { apiRequest } from '../api/client.js';
 
@@ -49,7 +51,7 @@ const getTeamIcon = (slugOrName: string) => {
 };
 
 export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate, onOpenNewTaskModal }) => {
-  const { user, activeProjectId } = useAuth();
+  const { user, activeProjectId, canManageTasks } = useAuth();
   const [data, setData] = useState<any>(null);
   const [myStrikes, setMyStrikes] = useState<any>(null);
   const [terminalHealth, setTerminalHealth] = useState<any>(null);
@@ -58,6 +60,9 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate, onOpenNe
   const [myTasks, setMyTasks] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
+
+  const canManage = canManageTasks();
 
   const loadData = async () => {
     try {
@@ -218,9 +223,19 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate, onOpenNe
           <button className="btn btn-secondary btn-sm" onClick={() => onNavigate('reviews')}>
             <FileCheck2 size={13} /> Review Queue ({metrics.awaitingReview})
           </button>
-          <button className="btn btn-primary btn-sm" onClick={onOpenNewTaskModal}>
-            <Plus size={14} /> New Task
-          </button>
+          {canManage ? (
+            <button className="btn btn-primary btn-sm" onClick={onOpenNewTaskModal}>
+              <Plus size={14} /> New Task
+            </button>
+          ) : (
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={() => setIsRequestModalOpen(true)}
+              title="Request a new task assignment from Team Leadership"
+            >
+              <Send size={13} color="var(--accent-orange)" /> Request Task
+            </button>
+          )}
         </div>
       </div>
 
@@ -347,13 +362,24 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate, onOpenNe
                   >
                     Browse Studio Tasks
                   </button>
-                  <button
-                    type="button"
-                    className="btn btn-primary btn-sm"
-                    onClick={onOpenNewTaskModal}
-                  >
-                    <Plus size={14} /> Create Task
-                  </button>
+                  {canManage ? (
+                    <button
+                      type="button"
+                      className="btn btn-primary btn-sm"
+                      onClick={onOpenNewTaskModal}
+                    >
+                      <Plus size={14} /> Create Task
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => setIsRequestModalOpen(true)}
+                      title="Request a new task assignment from Team Leadership"
+                    >
+                      <Send size={14} color="var(--accent-orange)" /> Request Task Assignment
+                    </button>
+                  )}
                 </div>
               </div>
             ) : (
@@ -1145,6 +1171,12 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate, onOpenNe
           </div>
         </div>
       </div>
+
+      <RequestTaskModal
+        isOpen={isRequestModalOpen}
+        onClose={() => setIsRequestModalOpen(false)}
+        onRequestSubmitted={loadData}
+      />
     </div>
   );
 };

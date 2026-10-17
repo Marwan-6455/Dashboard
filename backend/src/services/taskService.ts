@@ -6,6 +6,7 @@ import { recordActivity } from './activityService.js';
 import { createNotification } from './notificationService.js';
 import { scheduleTaskReminders, cancelTaskReminders } from './reminderScheduler.js';
 import { enqueueDiscordEvent } from './discordOutboxService.js';
+import { TaskAuthService } from './taskAuthService.js';
 
 export function generateTaskId(
   projectIdOrDb?: string | any,
@@ -275,6 +276,13 @@ export function createTask(
   creatorId: string,
   db = getDb()
 ): any {
+  const auth = TaskAuthService.verifyCanCreateTask(creatorId, data, db);
+  if (!auth.allowed) {
+    const err: any = new Error(auth.error);
+    err.statusCode = auth.statusCode || 403;
+    throw err;
+  }
+
   const projectId = data.projectId || 'terminal-6';
   const id = generateTaskId(projectId, db);
   const now = new Date().toISOString();
@@ -437,7 +445,16 @@ export function updateTask(
 ): any {
   const existing = getTaskById(taskId, db);
   if (!existing) {
-    throw new Error(`Task ${taskId} not found.`);
+    const err: any = new Error(`Task ${taskId} not found.`);
+    err.statusCode = 404;
+    throw err;
+  }
+
+  const auth = TaskAuthService.verifyCanEditTask(actorId, existing, updates, db);
+  if (!auth.allowed) {
+    const err: any = new Error(auth.error);
+    err.statusCode = auth.statusCode || 403;
+    throw err;
   }
 
   const now = new Date().toISOString();
@@ -580,6 +597,14 @@ export function updateTaskStatus(
     return existing;
   }
 
+  // Developer assignment verification: developers can only change status of tasks assigned to them (or tasks they review)
+  const perms = TaskAuthService.getPermissions(actorId, existing.workspace_id || 'ws_cindermarch', db);
+  if (perms.isDeveloper && existing.owner_id !== actorId && existing.reviewer_id !== actorId) {
+    const err: any = new Error('Access denied: You are only permitted to update the status of tasks assigned to you.');
+    err.statusCode = 403;
+    throw err;
+  }
+
   const now = new Date().toISOString();
 
   // COMPLETION GATE VALIDATION
@@ -681,7 +706,19 @@ export function updateTaskStatus(
   return getTaskById(taskId, db);
 }
 
-export function addAcceptanceCriterion(taskId: string, title: string, db = getDb()): any {
+export function addAcceptanceCriterion(taskId: string, title: string, actorId?: string, db = getDb()): any {
+  if (actorId) {
+    const existing = getTaskById(taskId, db);
+    if (existing) {
+      const perms = TaskAuthService.getPermissions(actorId, existing.workspace_id || 'ws_cindermarch', db);
+      if (perms.isDeveloper) {
+        const err: any = new Error('Access denied: Developers are not permitted to edit task definitions or acceptance criteria.');
+        err.statusCode = 403;
+        throw err;
+      }
+    }
+  }
+
   const now = new Date().toISOString();
   const id = `tac_${uuidv4().slice(0, 8)}`;
   const stmt = db.prepare(`
@@ -757,4 +794,132 @@ export function addComment(taskId: string, userId: string, content: string, db =
   }
 
   return comment;
+}
+
+/**
+ * Delete a task (Authorized administrators and permitted team managers only)
+ */
+export function deleteTask(taskId: string, actorId: string, db = getDb()): { success: boolean } {
+  const existing = getTaskById(taskId, db);
+  if (!existing) {
+    const err: any = new Error(`Task ${taskId} not found.`);
+    err.statusCode = 404;
+    throw err;
+  }
+
+  const auth = TaskAuthService.verifyCanDeleteTask(actorId, existing, db);
+  if (!auth.allowed) {
+    const err: any = new Error(auth.error);
+    err.statusCode = auth.statusCode || 403;
+    throw err;
+  }
+
+  cancelTaskReminders(taskId, db);
+
+  db.prepare('DELETE FROM task_comments WHERE task_id = ?').run(taskId);
+  db.prepare('DELETE FROM task_acceptance_criteria WHERE task_id = ?').run(taskId);
+  db.prepare('DELETE FROM task_dependencies WHERE task_id = ? OR depends_on_task_id = ?').run(taskId, taskId);
+  db.prepare('DELETE FROM task_changesets WHERE task_id = ?').run(taskId);
+  db.prepare('DELETE FROM tasks WHERE id = ?').run(taskId);
+
+  recordActivity(actorId, 'task_deleted', taskId, existing.title, null, 'application', null, db);
+
+  return { success: true };
+}
+
+/**
+ * Request a deadline extension (Permitted for assigned developers without directly altering deadline)
+ */
+export function requestDeadlineExtension(
+  taskId: string,
+  actorId: string,
+  requestedDeadline: string,
+  reason: string,
+  db = getDb()
+): { success: boolean; message: string } {
+  const existing = getTaskById(taskId, db);
+  if (!existing) {
+    const err: any = new Error(`Task ${taskId} not found.`);
+    err.statusCode = 404;
+    throw err;
+  }
+
+  const formattedDate = new Date(requestedDeadline).toLocaleDateString();
+  const content = `📅 [DEADLINE EXTENSION REQUESTED] Proposed deadline: ${formattedDate}. Reason: ${reason.trim()}`;
+  addComment(taskId, actorId, content, db);
+
+  recordActivity(
+    actorId,
+    'deadline_extension_requested',
+    taskId,
+    existing.deadline,
+    requestedDeadline,
+    'application',
+    { requestedDeadline, reason: reason.trim() },
+    db
+  );
+
+  if (existing.creator_id && existing.creator_id !== actorId) {
+    createNotification(
+      existing.creator_id,
+      'deadline_warning',
+      'Deadline Extension Requested',
+      `Extension requested on ${taskId}: ${reason.trim()} (Proposed: ${formattedDate})`,
+      taskId,
+      db
+    );
+  }
+
+  return {
+    success: true,
+    message: 'Deadline extension request submitted to team leadership for review.'
+  };
+}
+
+/**
+ * Request a new task assignment (Permitted for developers to request work from their Team Manager)
+ */
+export function requestNewTask(
+  actorId: string,
+  data: {
+    title: string;
+    description: string;
+    teamId?: string | null;
+    projectId?: string | null;
+    reason?: string | null;
+  },
+  db = getDb()
+): { success: boolean; message: string } {
+  const user = db.prepare('SELECT display_name FROM users WHERE id = ?').get(actorId) as any;
+  const userName = user?.display_name || 'Developer';
+
+  recordActivity(
+    actorId,
+    'task_assignment_requested',
+    null,
+    null,
+    data.title,
+    'application',
+    { title: data.title, description: data.description, teamId: data.teamId, projectId: data.projectId, reason: data.reason },
+    db
+  );
+
+  if (data.teamId) {
+    const team = db.prepare('SELECT manager_id, name FROM teams WHERE id = ?').get(data.teamId) as any;
+    if (team?.manager_id) {
+      createNotification(
+        team.manager_id,
+        'task_assigned',
+        'New Task Assignment Request',
+        `${userName} requested a task assignment in ${team.name}: "${data.title}"`,
+        null,
+        db
+      );
+    }
+  }
+
+  return {
+    success: true,
+    message: 'Task assignment request submitted to team leadership.'
+  };
 }

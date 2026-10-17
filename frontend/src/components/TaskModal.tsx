@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Plus, Trash2, Sliders, ChevronDown, ChevronRight, CheckSquare } from 'lucide-react';
+import { X, Plus, Trash2, Sliders, ChevronDown, ChevronRight, CheckSquare, ShieldAlert } from 'lucide-react';
 import { Task, Priority, TaskStatus } from '../types/index.js';
 import { apiRequest } from '../api/client.js';
 import { useAuth } from '../context/AuthContext.js';
@@ -37,7 +37,8 @@ export const TaskModal: React.FC<TaskModalProps> = ({
   taskToEdit,
   teamUsers = []
 }) => {
-  const { activeProjectId } = useAuth();
+  const { activeProjectId, canManageTasks } = useAuth();
+  const canManage = canManageTasks();
 
   // Essential fields
   const [title, setTitle] = useState('');
@@ -128,6 +129,37 @@ export const TaskModal: React.FC<TaskModalProps> = ({
   }, [taskToEdit, isOpen, activeProjectId]);
 
   if (!isOpen) return null;
+
+  if (!canManage) {
+    return (
+      <div className="modal-overlay">
+        <div className="modal-content" style={{ maxWidth: '480px' }}>
+          <div className="modal-header">
+            <div className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <ShieldAlert size={18} color="#EF4444" />
+              <span>Task Management Restricted</span>
+            </div>
+            <button onClick={onClose} style={{ color: 'var(--text-secondary)' }} aria-label="Close modal">
+              <X size={20} />
+            </button>
+          </div>
+          <div className="modal-body" style={{ padding: '20px', fontSize: '13px', color: 'var(--text-secondary)', lineHeight: '1.5' }}>
+            <p style={{ marginBottom: '12px' }}>
+              Ordinary Developers are not authorized to create tasks, modify task definitions, change priorities, or alter task assignments.
+            </p>
+            <p>
+              Please contact your Team Manager, Super Admin, or Studio Apex Authority, or use the <strong>Request Task</strong> feature to submit an assignment request.
+            </p>
+          </div>
+          <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', padding: '12px 20px', borderTop: '1px solid var(--border-subtle)' }}>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={onClose}>
+              Dismiss
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const handleAddCriterion = () => {
     setCriteria([...criteria, '']);

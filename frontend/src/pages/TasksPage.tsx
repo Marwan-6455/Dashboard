@@ -18,12 +18,14 @@ import {
   Layers,
   Sparkles,
   AlertCircle,
-  CheckSquare
+  CheckSquare,
+  Send
 } from 'lucide-react';
 import { Task, TaskStatus, Priority } from '../types/index.js';
 import { StatusBadge } from '../components/StatusBadge.js';
 import { PriorityBadge } from '../components/PriorityBadge.js';
 import { GateStatusWidget } from '../components/GateStatusWidget.js';
+import { RequestTaskModal } from '../components/RequestTaskModal.js';
 import { useAuth } from '../context/AuthContext.js';
 import { useToast } from '../context/ToastContext.js';
 import { apiRequest } from '../api/client.js';
@@ -85,12 +87,15 @@ export const TasksPage: React.FC<TasksPageProps> = ({
   initialFilterOwner,
   teamUsers = []
 }) => {
-  const { user, activeProjectId } = useAuth();
+  const { user, activeProjectId, canManageTasks } = useAuth();
   const toast = useToast();
 
   const [tasks, setTasks] = useState<Task[]>([]);
   const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
   const [activeTab, setActiveTab] = useState<PresetTab>('all');
+  const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
+
+  const canManage = canManageTasks();
 
   // Filters
   const [statusFilter, setStatusFilter] = useState<string>(initialFilterStatus || '');
@@ -191,6 +196,19 @@ export const TasksPage: React.FC<TasksPageProps> = ({
   }, [tasks, sortBy]);
 
   const handleQuickStatusChange = async (taskId: string, newStatus: TaskStatus) => {
+    const targetTask = tasks.find((t) => t.id === taskId);
+    if (!canManage) {
+      if (!targetTask || targetTask.owner_id !== user?.id) {
+        toast.error('Developers can only change progress status on their assigned tasks.');
+        return;
+      }
+      const allowedDevStatuses: TaskStatus[] = ['Backlog', 'In Progress', 'Ready for Review', 'Blocked'];
+      if (!allowedDevStatuses.includes(newStatus)) {
+        toast.error(`Transition to ${newStatus} requires review approval or management authorization.`);
+        return;
+      }
+    }
+
     // Optimistic update
     const previousTasks = [...tasks];
     setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, status: newStatus } : t)));
@@ -249,6 +267,18 @@ export const TasksPage: React.FC<TasksPageProps> = ({
     if (!taskId) return;
     const task = tasks.find((t) => t.id === taskId);
     if (!task || task.status === targetStatus) return;
+
+    if (!canManage) {
+      if (task.owner_id !== user?.id) {
+        toast.error('Developers can only transition tasks assigned to themselves.');
+        return;
+      }
+      const allowedDevStatuses: TaskStatus[] = ['Backlog', 'In Progress', 'Ready for Review', 'Blocked'];
+      if (!allowedDevStatuses.includes(targetStatus)) {
+        toast.error(`Transition to ${targetStatus} requires review approval or management authorization.`);
+        return;
+      }
+    }
 
     await handleQuickStatusChange(taskId, targetStatus);
   };
@@ -319,10 +349,22 @@ export const TasksPage: React.FC<TasksPageProps> = ({
             </button>
           </div>
 
-          <button className="btn btn-primary btn-sm" onClick={onOpenNewTaskModal}>
-            <Plus size={15} />
-            <span>Create Task</span>
-          </button>
+          {canManage ? (
+            <button className="btn btn-primary btn-sm" onClick={onOpenNewTaskModal}>
+              <Plus size={15} />
+              <span>Create Task</span>
+            </button>
+          ) : (
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={() => setIsRequestModalOpen(true)}
+              style={{ gap: '6px' }}
+              title="Request a new task assignment from Team Leadership"
+            >
+              <Send size={14} color="var(--accent-orange)" />
+              <span>Request Task</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -495,9 +537,20 @@ export const TasksPage: React.FC<TasksPageProps> = ({
                           ? 'Try clearing your active filters or search terms.'
                           : 'Create your first development task for Terminal 6 to begin tracking work.'}
                       </p>
-                      <button type="button" className="btn btn-primary btn-sm" onClick={onOpenNewTaskModal}>
-                        <Plus size={14} /> Create Task
-                      </button>
+                      {canManage ? (
+                        <button type="button" className="btn btn-primary btn-sm" onClick={onOpenNewTaskModal}>
+                          <Plus size={14} /> Create Task
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm"
+                          onClick={() => setIsRequestModalOpen(true)}
+                          style={{ gap: '6px' }}
+                        >
+                          <Send size={14} color="var(--accent-orange)" /> Request Task Assignment
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -607,18 +660,25 @@ export const TasksPage: React.FC<TasksPageProps> = ({
 
                       <td>
                         <div onClick={(e) => e.stopPropagation()}>
-                          <select
-                            className="form-control"
-                            style={{ fontSize: '12px', padding: '4px 8px', width: 'auto' }}
-                            value={task.status}
-                            onChange={(e) => handleQuickStatusChange(task.id, e.target.value as TaskStatus)}
-                          >
-                            {STATUS_COLUMNS.map((s) => (
-                              <option key={s} value={s}>
-                                {s}
-                              </option>
-                            ))}
-                          </select>
+                          {!canManage && task.owner_id !== user?.id ? (
+                            <StatusBadge status={task.status} />
+                          ) : (
+                            <select
+                              className="form-control"
+                              style={{ fontSize: '12px', padding: '4px 8px', width: 'auto' }}
+                              value={task.status}
+                              onChange={(e) => handleQuickStatusChange(task.id, e.target.value as TaskStatus)}
+                            >
+                              {(canManage
+                                ? STATUS_COLUMNS
+                                : Array.from(new Set(['Backlog', 'In Progress', 'Ready for Review', 'Blocked', task.status]))
+                              ).map((s) => (
+                                <option key={s} value={s}>
+                                  {s}
+                                </option>
+                              ))}
+                            </select>
+                          )}
                         </div>
                       </td>
 
@@ -720,9 +780,12 @@ export const TasksPage: React.FC<TasksPageProps> = ({
                         <div
                           key={t.id}
                           className={`kanban-card ${isDragging ? 'dragging' : ''}`}
-                          draggable={true}
+                          draggable={canManage || t.owner_id === user?.id}
                           onDragStart={(e) => handleDragStart(e, t.id)}
                           onClick={() => onNavigateToTask(t.id)}
+                          style={{
+                            cursor: canManage || t.owner_id === user?.id ? 'grab' : 'pointer'
+                          }}
                         >
                           <div className="kanban-card-header">
                             <span
@@ -865,6 +928,12 @@ export const TasksPage: React.FC<TasksPageProps> = ({
           </div>
         </div>
       )}
+
+      <RequestTaskModal
+        isOpen={isRequestModalOpen}
+        onClose={() => setIsRequestModalOpen(false)}
+        onRequestSubmitted={fetchTasks}
+      />
     </div>
   );
 };

@@ -49,9 +49,10 @@ export const TaskDetailPage: React.FC<TaskDetailPageProps> = ({
   onEditTask,
   teamUsers = []
 }) => {
-  const { user, hasRole } = useAuth();
+  const { user, hasRole, canManageTasks } = useAuth();
   const toast = useToast();
-  const isAdminOrOwner = hasRole('admin') || hasRole('owner');
+  const canManage = canManageTasks();
+  const isAdminOrOwner = canManage;
 
   const [task, setTask] = useState<Task | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -80,6 +81,12 @@ export const TaskDetailPage: React.FC<TaskDetailPageProps> = ({
   const [isExemptModalOpen, setIsExemptModalOpen] = useState(false);
   const [exemptionReason, setExemptionReason] = useState('');
   const [isSubmittingExemption, setIsSubmittingExemption] = useState(false);
+
+  // Developer deadline extension request modal state
+  const [isRequestExtensionModalOpen, setIsRequestExtensionModalOpen] = useState(false);
+  const [requestedExtensionDeadline, setRequestedExtensionDeadline] = useState('');
+  const [requestedExtensionReason, setRequestedExtensionReason] = useState('');
+  const [isSubmittingExtensionRequest, setIsSubmittingExtensionRequest] = useState(false);
 
   const fetchTask = async () => {
     try {
@@ -148,6 +155,47 @@ export const TaskDetailPage: React.FC<TaskDetailPageProps> = ({
       toast.error(err.message);
     } finally {
       setIsSubmittingExemption(false);
+    }
+  };
+
+  const handleRequestExtension = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!requestedExtensionDeadline || !requestedExtensionReason.trim()) {
+      toast.warning('Please provide both the proposed deadline and justification reason.');
+      return;
+    }
+    setIsSubmittingExtensionRequest(true);
+    try {
+      await apiRequest(`/api/tasks/${taskId}/request-extension`, {
+        method: 'POST',
+        body: JSON.stringify({
+          requestedDeadline: requestedExtensionDeadline,
+          reason: requestedExtensionReason.trim()
+        })
+      });
+      setIsRequestExtensionModalOpen(false);
+      setRequestedExtensionDeadline('');
+      setRequestedExtensionReason('');
+      toast.success('Deadline extension request submitted to Team Leadership.');
+      fetchTask();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to submit extension request.');
+    } finally {
+      setIsSubmittingExtensionRequest(false);
+    }
+  };
+
+  const handleDeleteTask = async () => {
+    if (!task) return;
+    if (!window.confirm(`Are you sure you want to permanently delete task ${task.id}? This action cannot be undone.`)) {
+      return;
+    }
+    try {
+      await apiRequest(`/api/tasks/${taskId}`, { method: 'DELETE' });
+      toast.success(`Task ${task.id} has been deleted.`);
+      onBack();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to delete task.');
     }
   };
 
@@ -523,7 +571,7 @@ export const TaskDetailPage: React.FC<TaskDetailPageProps> = ({
         </button>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-          {isAdminOrOwner && (
+          {canManage ? (
             <>
               <button
                 type="button"
@@ -545,27 +593,72 @@ export const TaskDetailPage: React.FC<TaskDetailPageProps> = ({
               >
                 <ShieldCheck size={14} /> {task.is_deadline_exempt === 1 ? 'Update Exemption' : 'Exempt from Strikes'}
               </button>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => onEditTask(task)}>
+                <Edit size={14} /> Edit Task
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                style={{ color: '#EF4444', borderColor: 'rgba(239, 68, 68, 0.35)' }}
+                onClick={handleDeleteTask}
+                title="Permanently remove task (Leadership Only)"
+              >
+                <Trash2 size={14} /> Delete
+              </button>
+            </>
+          ) : (
+            <>
+              {isOwner && (
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => {
+                    const currentDl = task.extended_deadline || task.deadline;
+                    setRequestedExtensionDeadline(currentDl ? currentDl.slice(0, 10) : '');
+                    setIsRequestExtensionModalOpen(true);
+                  }}
+                  title="Request a deadline extension from Team Leadership"
+                >
+                  <Clock size={14} color="var(--accent-orange)" /> Request Extension
+                </button>
+              )}
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  fontSize: '12px',
+                  color: 'var(--text-muted)',
+                  backgroundColor: 'var(--bg-elevated)',
+                  padding: '4px 10px',
+                  borderRadius: 'var(--radius-sm)',
+                  border: '1px solid var(--border-subtle)'
+                }}
+              >
+                <ShieldAlert size={13} color="var(--accent-orange)" /> Managed by Team Leadership
+              </span>
             </>
           )}
 
-          <select
-            className="form-control"
-            style={{ width: 'auto', fontWeight: 600 }}
-            value={task.status}
-            onChange={(e) => handleStatusChange(e.target.value as TaskStatus)}
-          >
-            <option value="Backlog">Backlog</option>
-            <option value="In Progress">In Progress</option>
-            <option value="Ready for Review">Ready for Review</option>
-            <option value="Changes Requested">Changes Requested</option>
-            <option value="Ready to Integrate">Ready to Integrate</option>
-            <option value="Verified Complete">Verified Complete</option>
-            <option value="Blocked">Blocked</option>
-          </select>
-
-          <button type="button" className="btn btn-secondary btn-sm" onClick={() => onEditTask(task)}>
-            <Edit size={14} /> Edit Task
-          </button>
+          {!canManage && !isOwner ? (
+            <StatusBadge status={task.status} />
+          ) : (
+            <select
+              className="form-control"
+              style={{ width: 'auto', fontWeight: 600 }}
+              value={task.status}
+              onChange={(e) => handleStatusChange(e.target.value as TaskStatus)}
+            >
+              {(canManage
+                ? ['Backlog', 'In Progress', 'Ready for Review', 'Changes Requested', 'Ready to Integrate', 'Verified Complete', 'Blocked']
+                : Array.from(new Set(['Backlog', 'In Progress', 'Ready for Review', 'Blocked', task.status]))
+              ).map((st) => (
+                <option key={st} value={st}>
+                  {st}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
       </div>
 
@@ -724,18 +817,24 @@ export const TaskDetailPage: React.FC<TaskDetailPageProps> = ({
                 )}
               </div>
 
-              <form onSubmit={handleAddCriterion} style={{ display: 'flex', gap: '8px' }}>
-                <input
-                  type="text"
-                  className="form-control"
-                  placeholder="Add verifiable acceptance item..."
-                  value={newCriterionTitle}
-                  onChange={(e) => setNewCriterionTitle(e.target.value)}
-                />
-                <button type="submit" className="btn btn-secondary btn-sm" disabled={!newCriterionTitle.trim()}>
-                  <Plus size={14} /> Add Item
-                </button>
-              </form>
+              {canManage ? (
+                <form onSubmit={handleAddCriterion} style={{ display: 'flex', gap: '8px' }}>
+                  <input
+                    type="text"
+                    className="form-control"
+                    placeholder="Add verifiable acceptance item..."
+                    value={newCriterionTitle}
+                    onChange={(e) => setNewCriterionTitle(e.target.value)}
+                  />
+                  <button type="submit" className="btn btn-secondary btn-sm" disabled={!newCriterionTitle.trim()}>
+                    <Plus size={14} /> Add Item
+                  </button>
+                </form>
+              ) : (
+                <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontStyle: 'italic', padding: '6px 0' }}>
+                  Acceptance criteria definitions are managed by Team Leadership. Check items off as work is completed.
+                </div>
+              )}
             </div>
           </div>
 
@@ -1277,6 +1376,92 @@ export const TaskDetailPage: React.FC<TaskDetailPageProps> = ({
                   disabled={isSubmittingExemption}
                 >
                   {isSubmittingExemption ? 'Recording Exemption...' : 'Confirm Strike Exemption'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Request Deadline Extension Modal (Developer Workflow) */}
+      {isRequestExtensionModalOpen && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '500px' }}>
+            <div className="modal-header">
+              <div className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Clock size={18} color="var(--accent-orange)" />
+                <span>Request Deadline Extension</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsRequestExtensionModalOpen(false)}
+                style={{ color: 'var(--text-secondary)' }}
+                aria-label="Close"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <form onSubmit={handleRequestExtension}>
+              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div
+                  style={{
+                    padding: '10px 14px',
+                    backgroundColor: 'rgba(255, 94, 30, 0.08)',
+                    border: '1px solid rgba(255, 94, 30, 0.25)',
+                    borderRadius: 'var(--radius-sm)',
+                    fontSize: '12px',
+                    color: 'var(--text-secondary)',
+                    lineHeight: '1.4'
+                  }}
+                >
+                  <strong style={{ color: 'var(--text-white)' }}>Policy Notice:</strong> Milestone deadlines cannot be directly edited by developers. Submitting this request sends a formal extension petition with your justification to Team Leadership.
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">Current Deadline</label>
+                  <input
+                    type="text"
+                    className="form-control"
+                    value={task.extended_deadline || task.deadline || 'None'}
+                    disabled
+                  />
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">Proposed New Deadline *</label>
+                  <input
+                    type="date"
+                    className="form-control"
+                    value={requestedExtensionDeadline}
+                    onChange={(e) => setRequestedExtensionDeadline(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">Justification & Unforeseen Blockers *</label>
+                  <textarea
+                    className="form-control"
+                    rows={3}
+                    placeholder="Describe technical complexity, blocking engine bugs, or cross-team dependency delays..."
+                    value={requestedExtensionReason}
+                    onChange={(e) => setRequestedExtensionReason(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+              <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => setIsRequestExtensionModalOpen(false)}
+                  disabled={isSubmittingExtensionRequest}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary btn-sm"
+                  disabled={isSubmittingExtensionRequest || !requestedExtensionDeadline || !requestedExtensionReason}
+                >
+                  {isSubmittingExtensionRequest ? 'Submitting...' : 'Submit Extension Request'}
                 </button>
               </div>
             </form>

@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Menu, Plus, Bell, Check, Search, ExternalLink, ChevronRight, CheckSquare } from 'lucide-react';
+import { Menu, Plus, Bell, Check, Search, ExternalLink, ChevronRight, CheckSquare, Send } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.js';
+import { RequestTaskModal } from './RequestTaskModal.js';
 
 interface HeaderProps {
   currentPage: string;
@@ -29,13 +30,17 @@ export const Header: React.FC<HeaderProps> = ({
     markNotificationRead,
     markAllNotificationsRead,
     activeProjectId,
-    setActiveProjectId
+    setActiveProjectId,
+    canManageTasks
   } = useAuth();
 
   const [showNotifications, setShowNotifications] = useState(false);
   const [showWorkspaceMenu, setShowWorkspaceMenu] = useState(false);
+  const [showRequestTaskModal, setShowRequestTaskModal] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
   const wsMenuRef = useRef<HTMLDivElement>(null);
+
+  const canManage = canManageTasks();
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -265,16 +270,29 @@ export const Header: React.FC<HeaderProps> = ({
           <kbd>Ctrl+K</kbd>
         </button>
 
-        {/* Quick Create Task Action */}
-        <button
-          type="button"
-          className="btn btn-primary btn-sm"
-          onClick={onOpenNewTaskModal}
-          style={{ gap: '6px' }}
-        >
-          <Plus size={15} />
-          <span>New Task</span>
-        </button>
+        {/* Task Management Action: Authorized Create vs Developer Request */}
+        {canManage ? (
+          <button
+            type="button"
+            className="btn btn-primary btn-sm"
+            onClick={onOpenNewTaskModal}
+            style={{ gap: '6px' }}
+          >
+            <Plus size={15} />
+            <span>New Task</span>
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={() => setShowRequestTaskModal(true)}
+            style={{ gap: '6px' }}
+            title="Request a new task assignment from Team Leadership"
+          >
+            <Send size={14} color="var(--accent-orange)" />
+            <span>Request Task</span>
+          </button>
+        )}
 
         {/* Studio Notifications Dropdown */}
         <div ref={notifRef} style={{ position: 'relative' }}>
@@ -428,6 +446,11 @@ export const Header: React.FC<HeaderProps> = ({
           )}
         </div>
       </div>
+
+      <RequestTaskModal
+        isOpen={showRequestTaskModal}
+        onClose={() => setShowRequestTaskModal(false)}
+      />
     </header>
   );
 };

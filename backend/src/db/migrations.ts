@@ -1216,6 +1216,82 @@ export function runMigrations(db: DatabaseSync): void {
       throw err;
     }
   }
+
+  // ---------------------------------------------------------------------------
+  // Migration 012: Enforce Task Creation and Task Definition Protection Triggers
+  // ---------------------------------------------------------------------------
+  const m12 = stmt.get('012_restrict_developer_task_management_triggers');
+  if (!m12) {
+    try {
+      console.log('[Migration 012] Enforcing task management authorization triggers on tasks table...');
+
+      db.exec(`
+        -- Trigger 1: Restrict direct developer task creation
+        CREATE TRIGGER IF NOT EXISTS trg_restrict_developer_task_creation
+        BEFORE INSERT ON tasks
+        FOR EACH ROW
+        WHEN (
+          NEW.creator_id IS NOT NULL AND
+          EXISTS (
+            SELECT 1 FROM workspace_members wm 
+            WHERE wm.user_id = NEW.creator_id 
+              AND (NEW.workspace_id IS NULL OR wm.workspace_id = NEW.workspace_id)
+              AND wm.role IN ('developer', 'reviewer', 'team_member')
+              AND NOT EXISTS (
+                SELECT 1 FROM workspace_members wm2 
+                WHERE wm2.user_id = NEW.creator_id 
+                  AND (NEW.workspace_id IS NULL OR wm2.workspace_id = NEW.workspace_id)
+                  AND wm2.role IN ('owner', 'super_admin', 'admin', 'team_manager')
+              )
+          )
+        )
+        BEGIN
+          SELECT RAISE(ABORT, 'Access denied: Developers are not permitted to create tasks.');
+        END;
+
+        -- Trigger 2: Restrict direct developer task definition edits
+        CREATE TRIGGER IF NOT EXISTS trg_restrict_developer_task_updates
+        BEFORE UPDATE ON tasks
+        FOR EACH ROW
+        WHEN (
+          NEW.last_edited_by IS NOT NULL AND
+          (
+            NEW.title != OLD.title OR 
+            NEW.description != OLD.description OR 
+            NEW.priority != OLD.priority OR 
+            NEW.deadline IS NOT OLD.deadline OR 
+            NEW.owner_id IS NOT OLD.owner_id OR 
+            NEW.team_id IS NOT OLD.team_id OR 
+            NEW.project_id != OLD.project_id
+          ) AND
+          EXISTS (
+            SELECT 1 FROM workspace_members wm 
+            WHERE wm.user_id = NEW.last_edited_by 
+              AND (NEW.workspace_id IS NULL OR wm.workspace_id = NEW.workspace_id)
+              AND wm.role IN ('developer', 'reviewer', 'team_member')
+              AND NOT EXISTS (
+                SELECT 1 FROM workspace_members wm2 
+                WHERE wm2.user_id = NEW.last_edited_by 
+                  AND (NEW.workspace_id IS NULL OR wm2.workspace_id = NEW.workspace_id)
+                  AND wm2.role IN ('owner', 'super_admin', 'admin', 'team_manager')
+              )
+          )
+        )
+        BEGIN
+          SELECT RAISE(ABORT, 'Access denied: Developers are not permitted to edit task definitions, priority, deadlines, or assignments.');
+        END;
+      `);
+
+      db.prepare('INSERT INTO _migrations (name, applied_at) VALUES (?, ?)').run(
+        '012_restrict_developer_task_management_triggers',
+        new Date().toISOString()
+      );
+      console.log('Migration 012 (restrict_developer_task_management_triggers) applied successfully.');
+    } catch (err) {
+      console.error('Error applying migration 012:', err);
+      throw err;
+    }
+  }
 }
 
 

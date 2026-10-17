@@ -307,7 +307,7 @@ botRouter.post('/tasks', (req: Request, res: Response): void => {
       dashboardUrl: `${clientOrigin}/tasks/${task.id}`
     });
   } catch (err: any) {
-    res.status(400).json({ error: err.message });
+    res.status(err.statusCode || 400).json({ error: err.message });
   }
 });
 
@@ -340,14 +340,18 @@ botRouter.patch('/tasks/:taskId/assign', (req: Request, res: Response): void => 
     newOwnerId = ownerRow.id;
   }
 
-  const updated = updateTask(taskId, { ownerId: newOwnerId }, user.id, db);
-  const clientOrigin = process.env.CLIENT_ORIGIN || 'http://localhost:5173';
+  try {
+    const updated = updateTask(taskId, { ownerId: newOwnerId }, user.id, db);
+    const clientOrigin = process.env.CLIENT_ORIGIN || 'http://localhost:5173';
 
-  res.json({
-    success: true,
-    task: updated,
-    dashboardUrl: `${clientOrigin}/tasks/${taskId}`
-  });
+    res.json({
+      success: true,
+      task: updated,
+      dashboardUrl: `${clientOrigin}/tasks/${taskId}`
+    });
+  } catch (err: any) {
+    res.status(err.statusCode || 400).json({ error: err.message });
+  }
 });
 
 // PATCH /api/bot/tasks/:taskId/status
@@ -425,16 +429,20 @@ botRouter.patch('/tasks/:taskId/deadline', (req: Request, res: Response): void =
     return;
   }
 
-  const updated = updateTask(taskId, { deadline: deadline || null }, user.id, db);
-  const clientOrigin = process.env.CLIENT_ORIGIN || 'http://localhost:5173';
+  try {
+    const updated = updateTask(taskId, { deadline: deadline || null }, user.id, db);
+    const clientOrigin = process.env.CLIENT_ORIGIN || 'http://localhost:5173';
 
-  res.json({
-    success: true,
-    previousDeadline: existing.deadline,
-    newDeadline: updated.deadline,
-    task: updated,
-    dashboardUrl: `${clientOrigin}/tasks/${taskId}`
-  });
+    res.json({
+      success: true,
+      previousDeadline: existing.deadline,
+      newDeadline: updated.deadline,
+      task: updated,
+      dashboardUrl: `${clientOrigin}/tasks/${taskId}`
+    });
+  } catch (err: any) {
+    res.status(err.statusCode || 400).json({ error: err.message });
+  }
 });
 
 // POST /api/bot/tasks/:taskId/comments

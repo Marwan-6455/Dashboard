@@ -9,11 +9,15 @@ import {
   updateTaskStatus,
   addAcceptanceCriterion,
   toggleAcceptanceCriterion,
-  addComment
+  addComment,
+  deleteTask,
+  requestDeadlineExtension,
+  requestNewTask
 } from '../services/taskService.js';
 import { linkChangesetToTask, recordChangeset, unlinkChangesetFromTask } from '../services/uvcsService.js';
 import { evaluateCompletionGates } from '../services/gateService.js';
 import { extendTaskDeadline, exemptTaskDeadline } from '../services/strikeService.js';
+import { TaskAuthService } from '../services/taskAuthService.js';
 
 export const taskRouter = Router();
 
@@ -107,8 +111,12 @@ taskRouter.post('/', (req: AuthenticatedRequest, res: Response): void => {
     workspaceId: parseResult.data.workspaceId || req.user?.workspace_id || 'ws_cindermarch'
   };
 
-  const task = createTask(taskData, req.user!.id);
-  res.status(201).json({ task });
+  try {
+    const task = createTask(taskData, req.user!.id);
+    res.status(201).json({ task });
+  } catch (err: any) {
+    res.status(err.statusCode || 400).json({ error: err.message });
+  }
 });
 
 taskRouter.patch('/:id', (req: AuthenticatedRequest, res: Response): void => {
@@ -116,7 +124,30 @@ taskRouter.patch('/:id', (req: AuthenticatedRequest, res: Response): void => {
     const updated = updateTask(req.params.id, req.body, req.user!.id);
     res.json({ task: updated });
   } catch (err: any) {
-    res.status(400).json({ error: err.message });
+    res.status(err.statusCode || 400).json({ error: err.message });
+  }
+});
+
+taskRouter.delete('/:id', (req: AuthenticatedRequest, res: Response): void => {
+  try {
+    deleteTask(req.params.id, req.user!.id);
+    res.json({ success: true, message: `Task ${req.params.id} deleted successfully.` });
+  } catch (err: any) {
+    res.status(err.statusCode || 400).json({ error: err.message });
+  }
+});
+
+taskRouter.post('/request', (req: AuthenticatedRequest, res: Response): void => {
+  const { title, description, teamId, projectId, reason } = req.body;
+  if (!title || !description) {
+    res.status(400).json({ error: 'Title and description are required.' });
+    return;
+  }
+  try {
+    const result = requestNewTask(req.user!.id, { title, description, teamId, projectId, reason });
+    res.status(201).json(result);
+  } catch (err: any) {
+    res.status(err.statusCode || 400).json({ error: err.message });
   }
 });
 
@@ -138,7 +169,7 @@ taskRouter.patch('/:id/status', (req: AuthenticatedRequest, res: Response): void
       });
       return;
     }
-    res.status(400).json({ error: err.message });
+    res.status(err.statusCode || 400).json({ error: err.message });
   }
 });
 
@@ -149,8 +180,12 @@ taskRouter.post('/:id/criteria', (req: AuthenticatedRequest, res: Response): voi
     return;
   }
 
-  const criterion = addAcceptanceCriterion(req.params.id, title);
-  res.status(201).json({ criterion });
+  try {
+    const criterion = addAcceptanceCriterion(req.params.id, title, req.user!.id);
+    res.status(201).json({ criterion });
+  } catch (err: any) {
+    res.status(err.statusCode || 400).json({ error: err.message });
+  }
 });
 
 taskRouter.patch('/:id/criteria/:critId', (req: AuthenticatedRequest, res: Response): void => {
@@ -217,11 +252,45 @@ taskRouter.delete('/:id/changesets/:changesetId', (req: AuthenticatedRequest, re
   }
 });
 
-// POST /api/tasks/:id/extend-deadline (Admin/Owner only)
-taskRouter.post('/:id/extend-deadline', requireRole(['admin']), (req: AuthenticatedRequest, res: Response): void => {
-  const { newDeadline, reason } = req.body;
+// POST /api/tasks/:id/request-extension (Permitted for assigned developers)
+taskRouter.post('/:id/request-extension', (req: AuthenticatedRequest, res: Response): void => {
+  const { requestedDeadline, reason } = req.body;
+  if (!requestedDeadline || !reason || !reason.trim()) {
+    res.status(400).json({ error: 'Both requestedDeadline and a documented reason are required.' });
+    return;
+  }
+
+  try {
+    const result = requestDeadlineExtension(req.params.id, req.user!.id, requestedDeadline, reason);
+    res.json(result);
+  } catch (err: any) {
+    res.status(err.statusCode || 400).json({ error: err.message });
+  }
+});
+
+// POST /api/tasks/:id/extend-deadline (Managers and Admins only)
+taskRouter.post('/:id/extend-deadline', (req: AuthenticatedRequest, res: Response): void => {
+  const newDeadline = req.body.newDeadline || req.body.extendedDeadline;
+  const { reason } = req.body;
   if (!newDeadline || !reason) {
     res.status(400).json({ error: 'Both newDeadline and a documented reason are required.' });
+    return;
+  }
+
+  const existing = getTaskById(req.params.id);
+  if (!existing) {
+    res.status(404).json({ error: `Task ${req.params.id} not found.` });
+    return;
+  }
+
+  const perms = TaskAuthService.getPermissions(req.user!.id, existing.workspace_id || 'ws_cindermarch');
+  if (perms.isDeveloper) {
+    res.status(403).json({ error: 'Access denied: Developers cannot directly change task deadlines. Please submit an extension request.' });
+    return;
+  }
+
+  if (perms.isTeamManager && existing.team_id && !perms.managedTeamIds.includes(existing.team_id)) {
+    res.status(403).json({ error: 'Access denied: You are not authorized to change deadlines for this team.' });
     return;
   }
 

@@ -32,6 +32,8 @@ interface AuthContextType {
   markNotificationRead: (id: string) => Promise<void>;
   markAllNotificationsRead: () => Promise<void>;
   hasRole: (role: UserRole) => boolean;
+  canManageTasks: () => boolean;
+  isDeveloper: () => boolean;
   refreshUser: () => Promise<void>;
 }
 
@@ -199,6 +201,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return user.roles.includes(role);
   };
 
+  const canManageTasks = (): boolean => {
+    if (!user) return false;
+    const roles = user.roles || [];
+    const wsRole = activeWorkspace?.role;
+    const managerRoles: UserRole[] = ['owner', 'super_admin', 'admin', 'team_manager'];
+    const hasManagerRole = roles.some((r) => managerRoles.includes(r));
+    const hasManagerWsRole = wsRole ? managerRoles.includes(wsRole) : false;
+    return hasManagerRole || hasManagerWsRole;
+  };
+
+  const isDeveloper = (): boolean => {
+    return !canManageTasks();
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -219,6 +235,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         markNotificationRead,
         markAllNotificationsRead,
         hasRole,
+        canManageTasks,
+        isDeveloper,
         refreshUser
       }}
     >
