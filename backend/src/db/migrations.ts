@@ -1,6 +1,12 @@
 import { DatabaseSync } from 'node:sqlite';
 import bcrypt from 'bcryptjs';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { SCHEMA_SQL } from './schema.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 export function runMigrations(db: DatabaseSync): void {
   // 1. Ensure migrations tracking table exists
@@ -792,5 +798,281 @@ export function runMigrations(db: DatabaseSync): void {
       console.error('Error applying migration 007:', err);
     }
   }
+
+  // 008: Safe retirement of AI Assistant feature (retains historical records non-destructively)
+  const migration008 = db.prepare('SELECT id FROM _migrations WHERE name = ?').get('008_retire_ai_assistant');
+  if (!migration008) {
+    try {
+      db.prepare('INSERT INTO _migrations (name, applied_at) VALUES (?, ?)').run(
+        '008_retire_ai_assistant',
+        new Date().toISOString()
+      );
+      console.log('Migration 008 (retire_ai_assistant) recorded successfully.');
+    } catch (err) {
+      console.error('Error applying migration 008:', err);
+    }
+  }
+
+  // Migration 009: Safe non-destructive archive of Blue Note Lounge & Activation of Eclipsed (2D Metroidvania)
+  const m9 = stmt.get('009_replace_blue_note_with_eclipsed');
+  if (!m9) {
+    try {
+      // 1. Create project_archives table
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS project_archives (
+          id TEXT PRIMARY KEY,
+          project_id TEXT NOT NULL,
+          project_name TEXT NOT NULL,
+          archived_at TEXT NOT NULL,
+          records_json TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_pa_project ON project_archives(project_id);
+      `);
+
+      // 2. Safe preservation: extract and archive all Blue Note Lounge historical records
+      const bnlProject = db.prepare("SELECT * FROM projects WHERE id = 'blue-note-lounge'").get();
+      if (bnlProject) {
+        const milestones = db.prepare("SELECT * FROM milestones WHERE project_id = 'blue-note-lounge'").all();
+        const sprints = db.prepare("SELECT * FROM sprints WHERE project_id = 'blue-note-lounge'").all();
+        const bugs = db.prepare("SELECT * FROM bugs WHERE project_id = 'blue-note-lounge'").all();
+        const documents = db.prepare("SELECT * FROM documents WHERE project_id = 'blue-note-lounge'").all();
+        const decisions = db.prepare("SELECT * FROM decisions WHERE project_id = 'blue-note-lounge'").all();
+        const storyEntries = db.prepare("SELECT * FROM story_bible_entries WHERE project_id = 'blue-note-lounge'").all();
+        const assets = db.prepare("SELECT * FROM assets WHERE project_id = 'blue-note-lounge'").all();
+        const aiConvs = db.prepare("SELECT * FROM ai_conversations WHERE project_id = 'blue-note-lounge'").all();
+
+        const archivePayload = {
+          archivedAt: new Date().toISOString(),
+          project: bnlProject,
+          milestones,
+          sprints,
+          bugs,
+          documents,
+          decisions,
+          storyBibleEntries: storyEntries,
+          assets,
+          aiConversations: aiConvs
+        };
+
+        const archiveId = `arc_bnl_${Date.now()}`;
+        db.prepare(`
+          INSERT INTO project_archives (id, project_id, project_name, archived_at, records_json)
+          VALUES (?, 'blue-note-lounge', 'Blue Note Lounge', ?, ?)
+        `).run(archiveId, new Date().toISOString(), JSON.stringify(archivePayload));
+
+        // Persist to filesystem as reliable offline JSON archive
+        try {
+          const archivesDir = path.resolve(__dirname, '../../data/archives');
+          if (!fs.existsSync(archivesDir)) {
+            fs.mkdirSync(archivesDir, { recursive: true });
+          }
+          fs.writeFileSync(
+            path.join(archivesDir, 'blue_note_lounge_archive.json'),
+            JSON.stringify(archivePayload, null, 2),
+            'utf8'
+          );
+        } catch (fsErr) {
+          console.warn('Could not write archive JSON to filesystem:', fsErr);
+        }
+
+        // 3. Mark blue-note-lounge as archived so it is safely kept for historical integrity
+        // but no longer appears in active project queries or project switchers
+        db.prepare("UPDATE projects SET status = 'archived' WHERE id = 'blue-note-lounge'").run();
+      }
+
+      // 4. Insert or update the real Eclipsed project record safely handling test in-memory foreign keys
+      const now = new Date().toISOString();
+      let wsId: string | null = null;
+      let ownerId: string | null = null;
+      try {
+        const wsCheck = db.prepare("SELECT id FROM workspaces WHERE id = 'ws_cindermarch'").get();
+        if (wsCheck) wsId = 'ws_cindermarch';
+      } catch {}
+      try {
+        const userCheck = db.prepare("SELECT id FROM users WHERE id = 'usr_lead'").get();
+        if (userCheck) ownerId = 'usr_lead';
+      } catch {}
+
+      db.prepare(`
+        INSERT INTO projects (
+          id, workspace_id, name, description, repository_id, status, owner_id, unity_version, target_platforms_json, created_at
+        ) VALUES (
+          'eclipsed',
+          ?,
+          'Eclipsed',
+          'Atmospheric 2D metroidvania game developed by Cindermarch Studio. Fluid movement, tight combat, exploration, and upgrade progression. Engine: Unity 6000.0.25f1',
+          'Eclipsed-Main@cindermarch',
+          'active',
+          ?,
+          '6000.0.25f1',
+          ?,
+          ?
+        )
+        ON CONFLICT(id) DO UPDATE SET
+          name = 'Eclipsed',
+          description = 'Atmospheric 2D metroidvania game developed by Cindermarch Studio. Fluid movement, tight combat, exploration, and upgrade progression. Engine: Unity 6000.0.25f1',
+          repository_id = 'Eclipsed-Main@cindermarch',
+          status = 'active',
+          unity_version = '6000.0.25f1',
+          target_platforms_json = ?
+      `).run(
+        wsId,
+        ownerId,
+        JSON.stringify(['PC/Steam', 'Nintendo Switch']),
+        now,
+        JSON.stringify(['PC/Steam', 'Nintendo Switch'])
+      );
+
+      db.prepare('INSERT INTO _migrations (name, applied_at) VALUES (?, ?)').run(
+        '009_replace_blue_note_with_eclipsed',
+        new Date().toISOString()
+      );
+      console.log('Migration 009 (replace_blue_note_with_eclipsed) applied successfully.');
+    } catch (err) {
+      console.error('Error applying migration 009:', err);
+    }
+  }
+
+  // Migration 010: Three Super Admins & Complete Website Administration
+  const m10 = stmt.get('010_three_super_admins_and_studio_administration');
+  if (!m10) {
+    try {
+      console.log('[Migration 010] Upgrading access control: 3 Super Admins & Studio Administration...');
+
+      // 1. Ensure columns exist on workspaces
+      try {
+        db.exec('ALTER TABLE workspaces ADD COLUMN primary_owner_id TEXT;');
+      } catch {}
+      try {
+        db.exec('ALTER TABLE workspaces ADD COLUMN super_admin_limit INTEGER NOT NULL DEFAULT 2;');
+      } catch {}
+
+      // 2. Ensure status column exists on workspace_members
+      try {
+        db.exec("ALTER TABLE workspace_members ADD COLUMN status TEXT NOT NULL DEFAULT 'active';");
+      } catch {}
+
+      // 3. Ensure team_id column exists on workspace_invitations
+      try {
+        db.exec('ALTER TABLE workspace_invitations ADD COLUMN team_id TEXT;');
+      } catch {}
+
+      // 4. Create admin_audit_log table if not exists
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS admin_audit_log (
+          id TEXT PRIMARY KEY,
+          workspace_id TEXT NOT NULL,
+          actor_id TEXT NOT NULL,
+          actor_name TEXT NOT NULL,
+          action TEXT NOT NULL,
+          target_type TEXT NOT NULL,
+          target_id TEXT,
+          target_name TEXT,
+          details_json TEXT,
+          reason TEXT,
+          ip_address TEXT,
+          created_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_audit_ws ON admin_audit_log(workspace_id);
+        CREATE INDEX IF NOT EXISTS idx_audit_created ON admin_audit_log(created_at);
+      `);
+
+      // 5. Establish KNG_MG as the designated Primary Owner of Cindermarch Studio
+      const primaryOwnerId = 'usr_1792096581289_bdaea15a';
+      const now = new Date().toISOString();
+
+      try {
+        const ownerExists = db.prepare('SELECT id FROM users WHERE id = ?').get(primaryOwnerId);
+        if (ownerExists) {
+          db.prepare(`
+            UPDATE workspaces
+            SET owner_id = ?, primary_owner_id = ?, super_admin_limit = 2, updated_at = ?
+            WHERE id = 'ws_cindermarch'
+          `).run(primaryOwnerId, primaryOwnerId, now);
+
+          // Ensure KNG_MG has role 'owner' in workspace_members
+          db.prepare(`
+            INSERT INTO workspace_members (id, workspace_id, user_id, role, status, joined_at)
+            VALUES ('wm_kng_mg_cindermarch', 'ws_cindermarch', ?, 'owner', 'active', ?)
+            ON CONFLICT(workspace_id, user_id) DO UPDATE SET role = 'owner', status = 'active'
+          `).run(primaryOwnerId, now);
+
+          // Ensure KNG_MG roles JSON has 'owner', 'admin'
+          const kngUser = db.prepare('SELECT roles FROM users WHERE id = ?').get(primaryOwnerId) as any;
+          if (kngUser) {
+            let currentRoles: string[] = [];
+            try {
+              currentRoles = JSON.parse(kngUser.roles || '[]');
+            } catch {}
+            if (!currentRoles.includes('owner')) currentRoles.unshift('owner');
+            if (!currentRoles.includes('admin')) currentRoles.push('admin');
+            db.prepare('UPDATE users SET roles = ?, updated_at = ? WHERE id = ?').run(
+              JSON.stringify(currentRoles),
+              now,
+              primaryOwnerId
+            );
+          }
+
+          // Record initial audit log entry
+          db.prepare(`
+            INSERT INTO admin_audit_log (id, workspace_id, actor_id, actor_name, action, target_type, target_id, target_name, details_json, reason, created_at)
+            VALUES (?, 'ws_cindermarch', ?, 'KNG_MG', 'primary_owner_established', 'user', ?, 'KNG_MG', ?, 'Established designated Primary Owner and upgraded Studio Administration governance.', ?)
+          `).run(
+            'audit_init_owner',
+            primaryOwnerId,
+            primaryOwnerId,
+            JSON.stringify({ account: 'KNG_MG', role: 'owner', superAdminSlots: 2 }),
+            now
+          );
+        }
+      } catch (ownerErr) {
+        console.warn('Note setting primary owner during migration:', ownerErr);
+      }
+
+      // 6. Create Database Triggers enforcing that at most 3 accounts (1 Primary Owner + 2 Super Admins) can hold Super Admin/Owner access
+      db.exec(`
+        CREATE TRIGGER IF NOT EXISTS trg_enforce_super_admin_limit_insert
+        BEFORE INSERT ON workspace_members
+        FOR EACH ROW
+        WHEN NEW.role IN ('owner', 'super_admin') AND NEW.workspace_id = 'ws_cindermarch'
+        BEGIN
+          SELECT CASE
+            WHEN (
+              SELECT COUNT(*) FROM workspace_members
+              WHERE workspace_id = NEW.workspace_id
+                AND role IN ('owner', 'super_admin')
+                AND user_id != NEW.user_id
+            ) >= 3
+            THEN RAISE(ABORT, 'Access control limit reached: Exactly three accounts may hold Super Admin or Owner privileges in Cindermarch Studio.')
+          END;
+        END;
+
+        CREATE TRIGGER IF NOT EXISTS trg_enforce_super_admin_limit_update
+        BEFORE UPDATE OF role ON workspace_members
+        FOR EACH ROW
+        WHEN NEW.role IN ('owner', 'super_admin') AND NEW.workspace_id = 'ws_cindermarch'
+        BEGIN
+          SELECT CASE
+            WHEN (
+              SELECT COUNT(*) FROM workspace_members
+              WHERE workspace_id = NEW.workspace_id
+                AND role IN ('owner', 'super_admin')
+                AND user_id != NEW.user_id
+            ) >= 3
+            THEN RAISE(ABORT, 'Access control limit reached: Exactly three accounts may hold Super Admin or Owner privileges in Cindermarch Studio.')
+          END;
+        END;
+      `);
+
+      db.prepare('INSERT INTO _migrations (name, applied_at) VALUES (?, ?)').run(
+        '010_three_super_admins_and_studio_administration',
+        now
+      );
+      console.log('Migration 010 (three_super_admins_and_studio_administration) applied successfully.');
+    } catch (err) {
+      console.error('Error applying migration 010:', err);
+    }
+  }
 }
+
 

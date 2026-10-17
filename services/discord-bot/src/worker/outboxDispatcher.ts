@@ -66,21 +66,32 @@ export async function processOutboxQueue(client: Client) {
         }
       }
 
-      // If no configured channel, try finding the first accessible system or text channel in guilds
-      if (!targetChannelId) {
-        const guild = client.guilds.cache.first();
-        const fallbackChannel = guild?.systemChannel || guild?.channels.cache.find((c) => c.isTextBased());
-        targetChannelId = fallbackChannel ? fallbackChannel.id : null;
+      const isSnowflake = (id?: string | null): boolean => !!id && /^\d{17,20}$/.test(id);
+
+      let channelToFetch = isSnowflake(targetChannelId) ? targetChannelId : null;
+      if (!channelToFetch && isSnowflake(guildConfig?.engine_channel_id)) {
+        channelToFetch = guildConfig.engine_channel_id;
+      }
+      if (!channelToFetch && isSnowflake(guildConfig?.announcements_channel_id)) {
+        channelToFetch = guildConfig.announcements_channel_id;
       }
 
-      if (!targetChannelId) {
-        console.warn(`[Outbox] No accessible channel found for event ${event.id} (${event.event_type}). Skipping for now.`);
-        continue;
+      let channel: any = null;
+      if (channelToFetch) {
+        channel = await client.channels.fetch(channelToFetch).catch(() => null);
       }
 
-      const channel = await client.channels.fetch(targetChannelId).catch(() => null);
+      // If still not found or not text-based, fallback to authorized guild's system or first text channel
       if (!channel || !(channel instanceof TextChannel)) {
-        await hubClient.ackOutbox(event.id, false, `Channel ${targetChannelId} not found or not text-based.`);
+        const authorizedGuild = client.guilds.cache.get(CONFIG.GUILD_ID) || client.guilds.cache.first();
+        const fallback = authorizedGuild?.systemChannel || authorizedGuild?.channels.cache.find((c) => c.isTextBased() && c instanceof TextChannel);
+        if (fallback instanceof TextChannel) {
+          channel = fallback;
+        }
+      }
+
+      if (!channel || !(channel instanceof TextChannel)) {
+        await hubClient.ackOutbox(event.id, false, `No accessible Discord text channel found for target "${targetChannelId}".`);
         continue;
       }
 
@@ -112,6 +123,7 @@ function createEmbedForEvent(eventType: string, payload: any): EmbedBuilder {
         .setColor(CONFIG.COLORS.PRIMARY)
         .addFields(
           { name: 'Title', value: payload.title, inline: false },
+          { name: 'Project', value: payload.projectName || (payload.projectId === 'eclipsed' || payload.taskId?.startsWith('ECL') ? 'Eclipsed' : 'Terminal 6'), inline: true },
           { name: 'Priority', value: `\`${payload.priority || 'P1'}\``, inline: true },
           { name: 'Category', value: payload.category || 'Gameplay', inline: true },
           { name: 'Deadline', value: payload.deadline ? `⏰ ${payload.deadline}` : '*None*', inline: true }

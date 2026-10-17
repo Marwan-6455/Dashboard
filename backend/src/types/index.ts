@@ -1,4 +1,11 @@
-export type UserRole = 'owner' | 'admin' | 'developer' | 'reviewer';
+export type UserRole =
+  | 'owner'
+  | 'super_admin'
+  | 'admin'
+  | 'team_manager'
+  | 'team_member'
+  | 'developer'
+  | 'reviewer';
 
 export interface User {
   id: string;
@@ -18,6 +25,8 @@ export interface Workspace {
   name: string;
   slug: string;
   owner_id: string;
+  primary_owner_id?: string | null;
+  super_admin_limit?: number;
   created_at: string;
   updated_at: string;
 }
@@ -27,6 +36,7 @@ export interface WorkspaceMember {
   workspace_id: string;
   user_id: string;
   role: UserRole;
+  status?: 'active' | 'pending_approval' | 'suspended' | 'rejected';
   joined_at: string;
   is_suspended?: number;
   suspended_at?: string | null;
@@ -34,6 +44,21 @@ export interface WorkspaceMember {
   reinstated_at?: string | null;
   reinstated_by?: string | null;
   reinstatement_reason?: string | null;
+}
+
+export interface AdminAuditEntry {
+  id: string;
+  workspace_id: string;
+  actor_id: string;
+  actor_name: string;
+  action: string;
+  target_type: string;
+  target_id?: string | null;
+  target_name?: string | null;
+  details_json?: string | null;
+  reason?: string | null;
+  ip_address?: string | null;
+  created_at: string;
 }
 
 export interface WorkspaceInvitation {

@@ -6,6 +6,7 @@ import { getDb } from '../db/connection.js';
 import { AuthenticatedRequest, authMiddleware, createSession, destroySession } from '../middleware/auth.js';
 import { authRateLimiter } from '../middleware/rateLimiter.js';
 import { User, UserRole, Workspace } from '../types/index.js';
+import { AdminService } from '../services/adminService.js';
 
 export const authRouter = Router();
 
@@ -32,7 +33,8 @@ const profileSchema = z.object({
 
 const inviteSchema = z.object({
   email: z.string().email('Invalid email address'),
-  role: z.enum(['admin', 'developer', 'reviewer']).default('developer')
+  role: z.enum(['super_admin', 'team_manager', 'team_member', 'admin', 'developer', 'reviewer']).default('team_member'),
+  teamId: z.string().optional()
 });
 
 function getUserWorkspaces(userId: string, db = getDb()): Array<{ id: string; name: string; slug: string; role: UserRole }> {
@@ -403,21 +405,47 @@ authRouter.post('/workspace/invite', authMiddleware, (req: AuthenticatedRequest,
     return;
   }
 
-  const { email, role } = parseResult.data;
+  const { email, role, teamId } = parseResult.data;
   const db = getDb();
 
   // Find user's active workspace
   const workspaceId = req.user.workspace_id || 'ws_cindermarch';
+  const ws = db.prepare('SELECT owner_id, primary_owner_id FROM workspaces WHERE id = ?').get(workspaceId) as any;
+  const primaryOwnerId = ws?.primary_owner_id || ws?.owner_id;
 
-  // Check if caller is owner or admin in this workspace
+  // Check if caller is owner or super_admin in this workspace
   const memberRecord = db.prepare(`
     SELECT role FROM workspace_members WHERE workspace_id = ? AND user_id = ?
   `).get(workspaceId, req.user.id) as { role: UserRole } | undefined;
 
-  const isOwnerOrAdmin = memberRecord?.role === 'owner' || memberRecord?.role === 'admin' || JSON.parse(req.user.roles).includes('admin');
-  if (!isOwnerOrAdmin) {
-    res.status(403).json({ error: 'Only workspace owners or admins can invite new members.' });
+  let callerRoles: string[] = [];
+  try {
+    callerRoles = JSON.parse(req.user.roles || '[]');
+  } catch {}
+
+  const isOwner = req.user.id === primaryOwnerId || memberRecord?.role === 'owner' || callerRoles.includes('owner');
+  const isSuperAdminOrAdmin = memberRecord?.role === 'super_admin' || memberRecord?.role === 'admin' || callerRoles.includes('admin') || callerRoles.includes('super_admin');
+
+  if (!isOwner && !isSuperAdminOrAdmin) {
+    res.status(403).json({ error: 'Only workspace owners or super admins can invite new members.' });
     return;
+  }
+
+  // If inviting as super_admin, only Primary Owner can do so and slots must be available
+  if (role === 'super_admin') {
+    if (!isOwner) {
+      res.status(403).json({ error: 'Only the Primary Owner can create invitations for Super Admin accounts.' });
+      return;
+    }
+    const currentSuperAdmins = (db.prepare(`
+      SELECT COUNT(*) as c FROM workspace_members 
+      WHERE workspace_id = ? AND role = 'super_admin' AND user_id != ?
+    `).get(workspaceId, primaryOwnerId) as any)?.c || 0;
+
+    if (currentSuperAdmins >= 2) {
+      res.status(400).json({ error: 'Super Admin slot limit reached: Exactly two Super Admin accounts can be appointed alongside the Primary Owner.' });
+      return;
+    }
   }
 
   const invitationToken = `inv_${Date.now()}_${uuidv4().replace(/-/g, '').slice(0, 16)}`;
@@ -426,9 +454,20 @@ authRouter.post('/workspace/invite', authMiddleware, (req: AuthenticatedRequest,
   const expiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(); // 14 days
 
   db.prepare(`
-    INSERT INTO workspace_invitations (id, workspace_id, email, invitation_token, role, status, invited_by, created_at, expires_at)
-    VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?)
-  `).run(id, workspaceId, email.toLowerCase(), invitationToken, role, req.user.id, now, expiresAt);
+    INSERT INTO workspace_invitations (id, workspace_id, email, invitation_token, role, team_id, status, invited_by, created_at, expires_at)
+    VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)
+  `).run(id, workspaceId, email.toLowerCase(), invitationToken, role, teamId || null, req.user.id, now, expiresAt);
+
+  AdminService.logAudit({
+    workspaceId,
+    actorId: req.user.id,
+    actorName: req.user.display_name,
+    action: 'invitation_created',
+    targetType: 'invitation',
+    targetId: id,
+    targetName: email.toLowerCase(),
+    details: { email: email.toLowerCase(), role, teamId }
+  });
 
   const workspace = db.prepare('SELECT name FROM workspaces WHERE id = ?').get(workspaceId) as { name: string } | undefined;
 
@@ -439,6 +478,7 @@ authRouter.post('/workspace/invite', authMiddleware, (req: AuthenticatedRequest,
       workspaceName: workspace?.name || 'Cindermarch Studio',
       email: email.toLowerCase(),
       role,
+      teamId: teamId || null,
       invitationToken,
       expiresAt,
       inviteUrl: `/signup?invite=${invitationToken}`
@@ -483,15 +523,39 @@ authRouter.delete('/invitations/:id', authMiddleware, (req: AuthenticatedRequest
     SELECT role FROM workspace_members WHERE workspace_id = ? AND user_id = ?
   `).get(workspaceId, req.user.id) as { role: UserRole } | undefined;
 
-  const isOwnerOrAdmin = memberRecord?.role === 'owner' || memberRecord?.role === 'admin' || JSON.parse(req.user.roles).includes('admin');
+  let callerRoles: string[] = [];
+  try {
+    callerRoles = JSON.parse(req.user.roles || '[]');
+  } catch {}
+
+  const isOwnerOrAdmin =
+    memberRecord?.role === 'owner' ||
+    memberRecord?.role === 'super_admin' ||
+    memberRecord?.role === 'admin' ||
+    callerRoles.includes('owner') ||
+    callerRoles.includes('super_admin') ||
+    callerRoles.includes('admin');
+
   if (!isOwnerOrAdmin) {
     res.status(403).json({ error: 'Only owners or admins can revoke invitations.' });
     return;
   }
 
+  const inv = db.prepare('SELECT email FROM workspace_invitations WHERE id = ?').get(req.params.id) as any;
+
   db.prepare(`
     UPDATE workspace_invitations SET status = 'revoked' WHERE id = ? AND workspace_id = ?
   `).run(req.params.id, workspaceId);
+
+  AdminService.logAudit({
+    workspaceId,
+    actorId: req.user.id,
+    actorName: req.user.display_name,
+    action: 'invitation_revoked',
+    targetType: 'invitation',
+    targetId: req.params.id,
+    targetName: inv?.email || req.params.id
+  });
 
   res.json({ success: true, message: 'Invitation revoked.' });
 });

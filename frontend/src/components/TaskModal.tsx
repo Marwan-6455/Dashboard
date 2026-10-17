@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Plus, Trash2, Tag, Clock } from 'lucide-react';
 import { Task, Priority, TaskStatus } from '../types/index.js';
 import { apiRequest } from '../api/client.js';
+import { useAuth } from '../context/AuthContext.js';
 
 interface TaskModalProps {
   isOpen: boolean;
@@ -13,13 +14,20 @@ interface TaskModalProps {
 
 const CATEGORIES = [
   'Gameplay',
+  'Level Design',
+  'Combat & Bosses',
+  'Movement & Physics',
+  'Abilities & Upgrades',
+  'Exploration & Progression',
   'Engine',
   'Graphics/Shaders',
-  'Audio',
-  'Physics',
+  'Art & Animation',
+  'Audio & SFX',
+  'Narrative & Lore',
   'Tooling',
   'UI/UX',
-  'Optimization'
+  'Optimization',
+  'QA & Testing'
 ];
 
 export const TaskModal: React.FC<TaskModalProps> = ({
@@ -29,6 +37,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
   taskToEdit,
   teamUsers = []
 }) => {
+  const { activeProjectId } = useAuth();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('Gameplay');
@@ -162,6 +171,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
           body: JSON.stringify({
             title,
             description,
+            projectId: activeProjectId,
             category,
             priority,
             status,

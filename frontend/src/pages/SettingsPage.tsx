@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Shield, RefreshCw, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Settings, Shield, RefreshCw, AlertTriangle, CheckCircle2, Flame } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.js';
 import { apiRequest } from '../api/client.js';
 import { useToast } from '../context/ToastContext.js';
@@ -28,6 +28,25 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onNavigate }) => {
   const [isReseeding, setIsReseeding] = useState(false);
   const [reseedConfirm, setResetConfirm] = useState('');
   const [message, setMessage] = useState<string | null>(null);
+
+  // Phoenix Mascot Preferences
+  const [phoenixPrefs, setPhoenixPrefs] = useState<any>(() => {
+    try {
+      const stored = localStorage.getItem('cm_phoenix_companion_prefs');
+      if (stored) return JSON.parse(stored);
+    } catch {}
+    return { enabled: true, reducedMotion: false, size: 'normal', speed: 'normal', muted: true };
+  });
+
+  const handleUpdatePhoenixPref = (key: string, value: any) => {
+    const updated = { ...phoenixPrefs, [key]: value };
+    setPhoenixPrefs(updated);
+    try {
+      localStorage.setItem('cm_phoenix_companion_prefs', JSON.stringify(updated));
+      window.dispatchEvent(new CustomEvent('cm_phoenix_prefs_updated', { detail: updated }));
+      toast.success('Mascot preference updated');
+    } catch {}
+  };
 
   const fetchSettings = async () => {
     try {
@@ -105,7 +124,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onNavigate }) => {
     <div className="page-wrapper">
       <div className="page-header">
         <div className="page-title-group">
-          <h1>Terminal 6 // Studio Hub Settings</h1>
+          <h1>Cindermarch Studio // Hub Settings & Verification Gates</h1>
           <p>Global verification gate rules, system health, and database management.</p>
         </div>
       </div>
@@ -256,6 +275,118 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onNavigate }) => {
                 </div>
               </div>
             )}
+          </div>
+
+          {/* Cindermarch Phoenix Mascot Settings */}
+          <div className="card">
+            <div className="card-header">
+              <div className="card-title">
+                <Flame size={18} color="var(--accent-orange)" />
+                <span>Cindermarch Phoenix Mascot</span>
+              </div>
+              <span className={`badge ${phoenixPrefs.enabled ? 'badge-verified-complete' : 'badge-blocked'}`}>
+                {phoenixPrefs.enabled
+                  ? phoenixPrefs.reducedMotion
+                    ? 'STATIONARY'
+                    : phoenixPrefs.speed === 'calm'
+                    ? 'CALM PATROL'
+                    : 'CORRIDOR ACTIVE'
+                  : 'DISABLED'}
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', fontSize: '13px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <strong>Top Corridor Companion</strong>
+                  <div style={{ fontSize: '11.5px', color: 'var(--text-secondary)' }}>
+                    Animated phoenix patrols dedicated top flight strip
+                  </div>
+                </div>
+                <input
+                  id="phoenix-toggle-enabled"
+                  type="checkbox"
+                  checked={phoenixPrefs.enabled}
+                  onChange={(e) => handleUpdatePhoenixPref('enabled', e.target.checked)}
+                  style={{ width: '16px', height: '16px', accentColor: 'var(--accent-orange)', cursor: 'pointer' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <strong>Reduced Motion / Stationary</strong>
+                  <div style={{ fontSize: '11.5px', color: 'var(--text-secondary)' }}>
+                    Keep avatar in gentle hover without horizontal roaming
+                  </div>
+                </div>
+                <input
+                  id="phoenix-toggle-reduced-motion"
+                  type="checkbox"
+                  checked={phoenixPrefs.reducedMotion}
+                  onChange={(e) => handleUpdatePhoenixPref('reducedMotion', e.target.checked)}
+                  style={{ width: '16px', height: '16px', accentColor: 'var(--accent-orange)', cursor: 'pointer' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <strong>Flight Speed & Intensity</strong>
+                  <div style={{ fontSize: '11.5px', color: 'var(--text-secondary)' }}>
+                    Calm (48px/s + long rests), Relaxed (56px/s), Normal (66px/s), Brisk (80px/s)
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: '4px' }}>
+                  {(['calm', 'relaxed', 'normal', 'brisk'] as const).map((spd) => (
+                    <button
+                      key={spd}
+                      type="button"
+                      className={`btn btn-sm ${phoenixPrefs.speed === spd ? 'btn-primary' : 'btn-secondary'}`}
+                      style={{ fontSize: '11px', padding: '2px 8px', textTransform: 'capitalize' }}
+                      onClick={() => handleUpdatePhoenixPref('speed', spd)}
+                    >
+                      {spd}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <strong>Avatar Size</strong>
+                  <div style={{ fontSize: '11.5px', color: 'var(--text-secondary)' }}>
+                    Dimensions of animated phoenix sprite
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: '4px' }}>
+                  {(['compact', 'normal', 'large'] as const).map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      className={`btn btn-sm ${phoenixPrefs.size === s ? 'btn-primary' : 'btn-secondary'}`}
+                      style={{ fontSize: '11px', padding: '2px 8px', textTransform: 'capitalize' }}
+                      onClick={() => handleUpdatePhoenixPref('size', s)}
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <strong>Audio Chimes</strong>
+                  <div style={{ fontSize: '11.5px', color: 'var(--text-secondary)' }}>
+                    Subtle chime sound on mascot interaction
+                  </div>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={!phoenixPrefs.muted}
+                  onChange={(e) => handleUpdatePhoenixPref('muted', !e.target.checked)}
+                  style={{ width: '16px', height: '16px', accentColor: 'var(--accent-orange)', cursor: 'pointer' }}
+                />
+              </div>
+            </div>
           </div>
 
           {/* Database Reset & Reseed (Admin Only) */}

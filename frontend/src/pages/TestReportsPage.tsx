@@ -17,6 +17,7 @@ import { TestReport } from '../types/index.js';
 import { TestReportModal } from '../components/TestReportModal.js';
 import { apiRequest } from '../api/client.js';
 import { useToast } from '../context/ToastContext.js';
+import { useAuth } from '../context/AuthContext.js';
 
 interface TestReportsPageProps {
   onNavigateToTask: (taskId: string) => void;
@@ -24,6 +25,7 @@ interface TestReportsPageProps {
 }
 
 export const TestReportsPage: React.FC<TestReportsPageProps> = ({ onNavigateToTask, tasks = [] }) => {
+  const { activeProjectId } = useAuth();
   const toast = useToast();
   const [reports, setReports] = useState<TestReport[]>([]);
   const [resultFilter, setResultFilter] = useState('');
@@ -82,7 +84,7 @@ export const TestReportsPage: React.FC<TestReportsPageProps> = ({ onNavigateToTa
     <div className="page-wrapper">
       <div className="page-header">
         <div className="page-title-group">
-          <h1>Terminal 6 // Test & Build Reports</h1>
+          <h1>{activeProjectId === 'eclipsed' ? 'Eclipsed' : 'Terminal 6'} // Test & Build Reports</h1>
           <p>Unity Test Framework outcomes, playmode test suites, and build validation logs.</p>
         </div>
         <div>

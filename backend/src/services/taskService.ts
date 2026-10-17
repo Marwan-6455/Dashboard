@@ -7,24 +7,41 @@ import { createNotification } from './notificationService.js';
 import { scheduleTaskReminders, cancelTaskReminders } from './reminderScheduler.js';
 import { enqueueDiscordEvent } from './discordOutboxService.js';
 
-export function generateTaskId(db = getDb()): string {
-  const stmt = db.prepare(`
-    SELECT id FROM tasks WHERE id LIKE 'T6-ENG-%' ORDER BY id DESC LIMIT 1
-  `);
-  const lastTask = stmt.get() as { id: string } | undefined;
+export function generateTaskId(
+  projectIdOrDb?: string | any,
+  maybeDb?: any
+): string {
+  let projectId = 'terminal-6';
+  let db: any;
 
-  if (!lastTask) {
-    return 'T6-ENG-001';
+  if (typeof projectIdOrDb === 'string') {
+    projectId = projectIdOrDb;
+    db = maybeDb || getDb();
+  } else if (projectIdOrDb && typeof projectIdOrDb === 'object') {
+    db = projectIdOrDb;
+  } else {
+    db = maybeDb || getDb();
   }
 
-  const match = lastTask.id.match(/T6-ENG-(\d+)/);
+  const prefix = projectId === 'eclipsed' ? 'ECL-ENG' : 'T6-ENG';
+  const stmt = db.prepare(`
+    SELECT id FROM tasks WHERE id LIKE ? ORDER BY id DESC LIMIT 1
+  `);
+  const lastTask = stmt.get(`${prefix}-%`) as { id: string } | undefined;
+
+  if (!lastTask) {
+    return `${prefix}-001`;
+  }
+
+  const match = lastTask.id.match(new RegExp(`${prefix}-(\\d+)`));
   if (!match) {
-    return `T6-ENG-${String(Date.now()).slice(-4)}`;
+    return `${prefix}-${String(Date.now()).slice(-4)}`;
   }
 
   const nextNumber = parseInt(match[1], 10) + 1;
-  return `T6-ENG-${String(nextNumber).padStart(3, '0')}`;
+  return `${prefix}-${String(nextNumber).padStart(3, '0')}`;
 }
+
 
 export function getTasks(
   filters: {
@@ -258,9 +275,10 @@ export function createTask(
   creatorId: string,
   db = getDb()
 ): any {
-  const id = generateTaskId(db);
-  const now = new Date().toISOString();
   const projectId = data.projectId || 'terminal-6';
+  const id = generateTaskId(projectId, db);
+  const now = new Date().toISOString();
+
   let workspaceId = data.workspaceId || null;
   if (!workspaceId) {
     try {
@@ -341,6 +359,8 @@ export function createTask(
     'task_created',
     {
       taskId: id,
+      projectId,
+      projectName: projectId === 'eclipsed' ? 'Eclipsed' : 'Terminal 6',
       title: data.title,
       description: data.description,
       priority,

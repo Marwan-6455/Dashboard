@@ -77,8 +77,6 @@ export const Header: React.FC<HeaderProps> = ({
         return 'Unity Build & Release Center';
       case 'marketing':
         return 'Marketing & Release Calendar';
-      case 'ai-assistant':
-        return 'Cindermarch AI Assistant';
       case 'team':
         return 'Studio Departments & Teams';
       case 'reviews':
@@ -116,7 +114,7 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Studio Breadcrumb Trail */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px' }}>
           <span style={{ color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.04em' }}>
-            {activeProjectId === 'blue-note-lounge' ? 'BLUE NOTE' : 'TERMINAL 6'}
+            {activeProjectId === 'eclipsed' ? 'ECLIPSED' : 'TERMINAL 6'}
           </span>
           <ChevronRight size={14} color="var(--border-strong)" />
           <span style={{ color: 'var(--text-white)', fontWeight: 700, letterSpacing: '-0.01em' }}>
@@ -139,26 +137,28 @@ export const Header: React.FC<HeaderProps> = ({
               fontWeight: activeProjectId === 'terminal-6' ? 700 : 500,
               cursor: 'pointer'
             }}
-            title="Switch project context to Terminal 6"
+            title="Switch project context to Terminal 6 (Psychological Horror)"
+            aria-label="Switch project context to Terminal 6"
           >
             T6
           </button>
           <button
             type="button"
-            onClick={() => setActiveProjectId('blue-note-lounge')}
+            onClick={() => setActiveProjectId('eclipsed')}
             style={{
               padding: '3px 8px',
               fontSize: '11px',
               borderRadius: 'var(--radius-sm)',
-              border: activeProjectId === 'blue-note-lounge' ? '1px solid var(--accent-orange)' : '1px solid var(--border-subtle)',
-              backgroundColor: activeProjectId === 'blue-note-lounge' ? 'rgba(255, 94, 30, 0.15)' : 'var(--bg-elevated)',
-              color: activeProjectId === 'blue-note-lounge' ? 'var(--accent-orange)' : 'var(--text-secondary)',
-              fontWeight: activeProjectId === 'blue-note-lounge' ? 700 : 500,
+              border: activeProjectId === 'eclipsed' ? '1px solid var(--accent-orange)' : '1px solid var(--border-subtle)',
+              backgroundColor: activeProjectId === 'eclipsed' ? 'rgba(255, 94, 30, 0.15)' : 'var(--bg-elevated)',
+              color: activeProjectId === 'eclipsed' ? 'var(--accent-orange)' : 'var(--text-secondary)',
+              fontWeight: activeProjectId === 'eclipsed' ? 700 : 500,
               cursor: 'pointer'
             }}
-            title="Switch project context to Blue Note Lounge"
+            title="Switch project context to Eclipsed (2D Metroidvania)"
+            aria-label="Switch project context to Eclipsed"
           >
-            BNL
+            ECL
           </button>
         </div>
 

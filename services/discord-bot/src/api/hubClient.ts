@@ -95,6 +95,7 @@ export class HubClient {
     priority?: string;
     category?: string;
     teamId?: string;
+    projectId?: string;
     deadline?: string;
     ownerUsernameOrId?: string;
     reviewerUsernameOrId?: string;

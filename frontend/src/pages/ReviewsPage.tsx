@@ -24,7 +24,7 @@ interface ReviewsPageProps {
 }
 
 export const ReviewsPage: React.FC<ReviewsPageProps> = ({ onNavigateToTask, teamUsers = [] }) => {
-  const { user } = useAuth();
+  const { user, activeProjectId } = useAuth();
   const toast = useToast();
   const [reviews, setReviews] = useState<Review[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -74,7 +74,7 @@ export const ReviewsPage: React.FC<ReviewsPageProps> = ({ onNavigateToTask, team
     <div className="page-wrapper">
       <div className="page-header">
         <div className="page-title-group">
-          <h1>Terminal 6 // Peer Review System</h1>
+          <h1>{activeProjectId === 'eclipsed' ? 'Eclipsed' : 'Terminal 6'} // Peer Review System</h1>
           <p>Mandatory independent verification gates, review checklists, and architectural decisions.</p>
         </div>
       </div>

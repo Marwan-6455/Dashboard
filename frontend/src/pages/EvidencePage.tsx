@@ -4,6 +4,7 @@ import { Evidence } from '../types/index.js';
 import { EvidenceModal } from '../components/EvidenceModal.js';
 import { apiRequest } from '../api/client.js';
 import { useToast } from '../context/ToastContext.js';
+import { useAuth } from '../context/AuthContext.js';
 
 interface EvidencePageProps {
   onNavigateToTask: (taskId: string) => void;
@@ -11,6 +12,7 @@ interface EvidencePageProps {
 }
 
 export const EvidencePage: React.FC<EvidencePageProps> = ({ onNavigateToTask, tasks = [] }) => {
+  const { activeProjectId } = useAuth();
   const toast = useToast();
   const [evidenceList, setEvidenceList] = useState<Evidence[]>([]);
   const [typeFilter, setTypeFilter] = useState('');
@@ -75,7 +77,7 @@ export const EvidencePage: React.FC<EvidencePageProps> = ({ onNavigateToTask, ta
     <div className="page-wrapper">
       <div className="page-header">
         <div className="page-title-group">
-          <h1>Terminal 6 // Verification Evidence</h1>
+          <h1>{activeProjectId === 'eclipsed' ? 'Eclipsed' : 'Terminal 6'} // Verification Evidence</h1>
           <p>Visual captures, Unity PlayMode screenshots, profiler breakdowns, and execution logs.</p>
         </div>
         <div>

@@ -8,7 +8,7 @@ import { hubClient } from '../api/hubClient.js';
 
 export const data = new SlashCommandBuilder()
   .setName('task')
-  .setDescription('Manage Terminal 6 development tasks on the Cindermarch Engine Hub')
+  .setDescription('Manage Cindermarch development tasks (Terminal 6 / Eclipsed) on the Engine Hub')
   // Subcommand: view
   .addSubcommand((sub) =>
     sub
@@ -65,6 +65,16 @@ export const data = new SlashCommandBuilder()
       )
       .addStringOption((opt) =>
         opt.setName('deadline').setDescription('Deadline date (YYYY-MM-DD)').setRequired(false)
+      )
+      .addStringOption((opt) =>
+        opt
+          .setName('project')
+          .setDescription('Studio Project (Terminal 6 or Eclipsed)')
+          .setRequired(false)
+          .addChoices(
+            { name: 'Terminal 6 (Psychological Horror)', value: 'terminal-6' },
+            { name: 'Eclipsed (2D Metroidvania)', value: 'eclipsed' }
+          )
       )
       .addStringOption((opt) =>
         opt.setName('assignee').setDescription('Assignee username or display name').setRequired(false)
@@ -238,6 +248,7 @@ async function handleCreate(interaction: ChatInputCommandInteraction) {
   const deadline = interaction.options.getString('deadline') || undefined;
   const assignee = interaction.options.getString('assignee') || undefined;
   const reviewer = interaction.options.getString('reviewer') || undefined;
+  const project = interaction.options.getString('project') || 'terminal-6';
 
   try {
     const res = await hubClient.createTask({
@@ -247,6 +258,7 @@ async function handleCreate(interaction: ChatInputCommandInteraction) {
       priority,
       category,
       teamId: team,
+      projectId: project,
       deadline,
       ownerUsernameOrId: assignee,
       reviewerUsernameOrId: reviewer
@@ -259,6 +271,7 @@ async function handleCreate(interaction: ChatInputCommandInteraction) {
       .setDescription(task.description)
       .setColor(CONFIG.COLORS.PRIMARY)
       .addFields(
+        { name: 'Project', value: project === 'eclipsed' ? 'Eclipsed' : 'Terminal 6', inline: true },
         { name: 'Priority', value: `\`${task.priority}\``, inline: true },
         { name: 'Category', value: task.category, inline: true },
         { name: 'Team', value: task.team_name || team || 'Studio', inline: true },

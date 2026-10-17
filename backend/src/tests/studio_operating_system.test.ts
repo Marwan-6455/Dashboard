@@ -11,7 +11,6 @@ import { DecisionService } from '../services/decisionService.js';
 import { StandupMeetingService } from '../services/standupMeetingService.js';
 import { BuildReleaseService } from '../services/buildReleaseService.js';
 import { SearchService } from '../services/searchService.js';
-import { AIAssistantService } from '../services/aiAssistantService.js';
 
 describe('Cindermarch Studio Operating System Platform Services', () => {
   beforeAll(() => {
@@ -21,15 +20,17 @@ describe('Cindermarch Studio Operating System Platform Services', () => {
   });
 
   describe('ProjectService & Explainable Health', () => {
-    it('retrieves seeded projects Terminal 6 and Blue Note Lounge', () => {
+    it('retrieves active seeded projects Terminal 6 and Eclipsed', () => {
       const projects = ProjectService.getAllProjects();
       expect(projects.length).toBeGreaterThanOrEqual(2);
       const t6 = projects.find(p => p.id === 'terminal-6');
-      const bnl = projects.find(p => p.id === 'blue-note-lounge');
+      const ecl = projects.find(p => p.id === 'eclipsed');
       expect(t6).toBeDefined();
       expect(t6?.name).toBe('Terminal 6');
-      expect(bnl).toBeDefined();
-      expect(bnl?.name).toBe('Blue Note Lounge');
+      expect(ecl).toBeDefined();
+      expect(ecl?.name).toBe('Eclipsed');
+      const bnl = projects.find(p => p.id === 'blue-note-lounge');
+      expect(bnl).toBeUndefined();
     });
 
     it('calculates explainable project health based on actual data', () => {
@@ -281,26 +282,11 @@ describe('Cindermarch Studio Operating System Platform Services', () => {
     });
   });
 
-  describe('Search & AI Assistant', () => {
+  describe('Unified Search Service', () => {
     it('performs unified cross-entity search', () => {
       const results = SearchService.search('Platform', 'ws_cindermarch');
       expect(results.length).toBeGreaterThan(0);
       expect(results.some(r => r.type === 'bug' || r.type === 'asset' || r.type === 'story' || r.type === 'task')).toBe(true);
-    });
-
-    it('AI Assistant generates authoritative response with real citations', async () => {
-      const res = await AIAssistantService.query('What is blocking the milestone or project health?', 'usr_lead');
-      expect(res.answer).toBeDefined();
-      expect(res.answer).toContain('Project Health');
-      expect(res.citations.length).toBeGreaterThan(0);
-    });
-
-    it('AI Assistant drafts tasks with required confirmation', async () => {
-      const res = await AIAssistantService.query('create task for lighting optimization in subway car', 'usr_lead');
-      expect(res.draftedActions).toBeDefined();
-      expect(res.draftedActions?.length).toBeGreaterThan(0);
-      expect(res.draftedActions?.[0].requiresConfirmation).toBe(true);
-      expect(res.draftedActions?.[0].payload.project_id).toBe('terminal-6');
     });
   });
 });

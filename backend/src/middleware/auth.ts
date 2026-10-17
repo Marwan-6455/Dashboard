@@ -41,6 +41,18 @@ export function destroySession(sessionToken: string): void {
   } catch {}
 }
 
+export function invalidateUserSessions(userId: string): void {
+  for (const [token, session] of activeSessions.entries()) {
+    if (session.userId === userId) {
+      activeSessions.delete(token);
+    }
+  }
+  try {
+    const db = getDb();
+    db.prepare('DELETE FROM user_sessions WHERE user_id = ?').run(userId);
+  } catch {}
+}
+
 export function authMiddleware(req: AuthenticatedRequest, res: Response, next: NextFunction): void {
   const authHeader = req.headers['authorization'];
   const bearerToken = typeof authHeader === 'string' && authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : undefined;
@@ -122,19 +134,29 @@ export function authMiddleware(req: AuthenticatedRequest, res: Response, next: N
     const db = getDb();
     try {
       const member = db.prepare(`
-        SELECT is_suspended, suspension_reason, suspended_at
+        SELECT role, is_suspended, suspension_reason, suspended_at, status
         FROM workspace_members
         WHERE workspace_id = ? AND user_id = ?
-      `).get(workspaceId, user.id) as { is_suspended: number; suspension_reason: string; suspended_at: string } | undefined;
+      `).get(workspaceId, user.id) as any;
 
-      if (member && member.is_suspended === 1) {
-        res.status(403).json({
-          error: 'Workspace membership suspended due to deadline strikes policy.',
-          isSuspended: true,
-          suspensionReason: member.suspension_reason || 'Exceeded maximum deadline strikes threshold.',
-          suspendedAt: member.suspended_at
-        });
-        return;
+      if (member) {
+        if (member.is_suspended === 1 || member.status === 'suspended') {
+          res.status(403).json({
+            error: `Workspace membership suspended: ${member.suspension_reason || 'Account suspended by Studio Administration.'}`,
+            isSuspended: true,
+            suspensionReason: member.suspension_reason || 'Account suspended by Studio Administration.',
+            suspendedAt: member.suspended_at
+          });
+          return;
+        }
+
+        if (member.status === 'pending_approval') {
+          res.status(403).json({
+            error: 'Workspace membership pending administrator approval. Please wait for the Primary Owner or a Super Admin to approve your account.',
+            isPendingApproval: true
+          });
+          return;
+        }
       }
     } catch {
       // Graceful fallback if table/column in migration is pending
@@ -153,7 +175,23 @@ export function requireRole(allowedRoles: UserRole[]) {
 
     try {
       const userRoles: UserRole[] = JSON.parse(req.user.roles);
-      const hasRole = allowedRoles.some((r) => userRoles.includes(r));
+
+      // Owner and Super Admin inherently hold admin and team_manager capabilities
+      const effectiveRoles = new Set<string>(userRoles);
+      if (userRoles.includes('owner')) {
+        effectiveRoles.add('super_admin');
+        effectiveRoles.add('admin');
+        effectiveRoles.add('team_manager');
+      }
+      if (userRoles.includes('super_admin')) {
+        effectiveRoles.add('admin');
+        effectiveRoles.add('team_manager');
+      }
+      if (userRoles.includes('admin')) {
+        effectiveRoles.add('team_manager');
+      }
+
+      const hasRole = allowedRoles.some((r) => effectiveRoles.has(r));
       if (!hasRole) {
         res.status(403).json({
           error: `Access denied. Requires one of the following roles: ${allowedRoles.join(', ')}`
@@ -167,13 +205,67 @@ export function requireRole(allowedRoles: UserRole[]) {
   };
 }
 
+export function requirePrimaryOwner(req: AuthenticatedRequest, res: Response, next: NextFunction): void {
+  if (!req.user) {
+    res.status(401).json({ error: 'Authentication required.' });
+    return;
+  }
+
+  const workspaceId = req.user.workspace_id || 'ws_cindermarch';
+  const db = getDb();
+  const ws = db.prepare('SELECT owner_id, primary_owner_id FROM workspaces WHERE id = ?').get(workspaceId) as any;
+  const primaryOwnerId = ws?.primary_owner_id || ws?.owner_id;
+
+  if (req.user.id !== primaryOwnerId) {
+    res.status(403).json({ error: 'Access denied: Only the Primary Owner can perform this administrative action.' });
+    return;
+  }
+
+  next();
+}
+
+export function requireSuperAdminOrOwner(req: AuthenticatedRequest, res: Response, next: NextFunction): void {
+  if (!req.user) {
+    res.status(401).json({ error: 'Authentication required.' });
+    return;
+  }
+
+  const workspaceId = req.user.workspace_id || 'ws_cindermarch';
+  const db = getDb();
+  const member = db.prepare('SELECT role, is_suspended, status FROM workspace_members WHERE workspace_id = ? AND user_id = ?').get(workspaceId, req.user.id) as any;
+
+  if (member?.is_suspended === 1 || member?.status === 'suspended') {
+    res.status(403).json({ error: 'Account suspended.' });
+    return;
+  }
+
+  let roles: string[] = [];
+  try {
+    roles = JSON.parse(req.user.roles || '[]');
+  } catch {}
+
+  const isSuperAdminOrOwner =
+    member?.role === 'owner' ||
+    member?.role === 'super_admin' ||
+    member?.role === 'admin' ||
+    roles.includes('owner') ||
+    roles.includes('super_admin') ||
+    roles.includes('admin');
+
+  if (!isSuperAdminOrOwner) {
+    res.status(403).json({ error: 'Access denied: Requires Super Admin or Primary Owner access.' });
+    return;
+  }
+
+  next();
+}
+
 export function checkWorkspaceSuspension(req: AuthenticatedRequest, res: Response, next: NextFunction): void {
   if (!req.user) {
     return next();
   }
 
   const url = (req.baseUrl || '') + (req.path || '');
-  // Allow essential routes for suspended users: auth, strike status, workspace entry warning, and disputes
   if (
     url.startsWith('/api/auth') ||
     url.startsWith('/api/strikes/my-status') ||
@@ -188,16 +280,16 @@ export function checkWorkspaceSuspension(req: AuthenticatedRequest, res: Respons
   const workspaceId = req.user.workspace_id || 'ws_cindermarch';
   const db = getDb();
   const member = db.prepare(`
-    SELECT is_suspended, suspension_reason, suspended_at
+    SELECT is_suspended, suspension_reason, suspended_at, status
     FROM workspace_members
     WHERE workspace_id = ? AND user_id = ?
-  `).get(workspaceId, req.user.id) as { is_suspended: number; suspension_reason: string; suspended_at: string } | undefined;
+  `).get(workspaceId, req.user.id) as any;
 
-  if (member && member.is_suspended === 1) {
+  if (member && (member.is_suspended === 1 || member.status === 'suspended')) {
     res.status(403).json({
-      error: 'Workspace membership suspended due to deadline strikes policy.',
+      error: `Workspace access suspended: ${member.suspension_reason || 'Account suspended by Studio Administration.'}`,
       isSuspended: true,
-      suspensionReason: member.suspension_reason || 'Exceeded maximum deadline strikes threshold.',
+      suspensionReason: member.suspension_reason || 'Account suspended by Studio Administration.',
       suspendedAt: member.suspended_at
     });
     return;

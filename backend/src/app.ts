@@ -24,7 +24,8 @@ import { standupMeetingRouter } from './routes/standupMeetingRoutes.js';
 import { buildReleaseRouter } from './routes/buildReleaseRoutes.js';
 import { marketingRouter } from './routes/marketingRoutes.js';
 import { searchRouter } from './routes/searchRoutes.js';
-import { aiRouter } from './routes/aiRoutes.js';
+import { adminRouter } from './routes/adminRoutes.js';
+
 import path from 'path';
 import fs from 'fs';
 import { errorHandler } from './middleware/errorHandler.js';
@@ -75,7 +76,7 @@ app.use('/api', standupMeetingRouter);
 app.use('/api', buildReleaseRouter);
 app.use('/api/marketing', marketingRouter);
 app.use('/api/search', searchRouter);
-app.use('/api/ai', aiRouter);
+app.use('/api/admin', adminRouter);
 
 // Centralized error handler
 app.use(errorHandler);

@@ -24,7 +24,6 @@ services:
       - DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID:-1560406066867478681}
       - DISCORD_GUILD_ID=${DISCORD_GUILD_ID:-1394770347030483034}
       - STUDIO_TIMEZONE=${STUDIO_TIMEZONE:-Africa/Cairo}
-      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
     volumes:
       - cindermarch_data:/app/data
       - cindermarch_uploads:/app/uploads

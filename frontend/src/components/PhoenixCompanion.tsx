@@ -1,366 +1,431 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { Volume2, VolumeX, EyeOff, Minus, ChevronUp, Sparkles, AlertTriangle } from 'lucide-react';
-import { useAuth } from '../context/AuthContext.js';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { Flame } from 'lucide-react';
+import {
+  stepPhoenixEngine,
+  createInitialPhoenixEngineState,
+  getPhoenixSafeBounds,
+  PHOENIX_FLY_FRAMES,
+  PHOENIX_HOVER_FRAMES,
+  PhoenixEngineConfig,
+  PhoenixEngineState,
+  PhoenixSpeedMode
+} from '../utils/phoenixEngine';
 
-interface CompanionPrefs {
-  minimized: boolean;
+export interface PhoenixPrefs {
+  enabled: boolean;
+  reducedMotion: boolean;
+  size: 'compact' | 'normal' | 'large';
+  speed: PhoenixSpeedMode;
   muted: boolean;
-  hidden: boolean;
 }
 
-const STORAGE_KEY = 'cm_phoenix_companion_prefs';
+export const STORAGE_KEY = 'cm_phoenix_companion_prefs';
 
 export const PhoenixCompanion: React.FC = () => {
-  const { notifications, unreadNotificationsCount } = useAuth();
+  // DOM References
+  const corridorRef = useRef<HTMLDivElement>(null);
+  const avatarRef = useRef<HTMLDivElement>(null);
+  const imgRef = useRef<HTMLImageElement>(null);
 
-  // Load preferences from localStorage
-  const [prefs, setPrefs] = useState<CompanionPrefs>(() => {
+  // Authoritative Single Animation Loop Controls
+  const rafIdRef = useRef<number | null>(null);
+  const lastTimeRef = useRef<number>(0);
+  const isMountedRef = useRef<boolean>(true);
+  const isMouseHoveredRef = useRef<boolean>(false);
+  const engineStateRef = useRef<PhoenixEngineState>(
+    createInitialPhoenixEngineState(80, 14)
+  );
+  const corridorDimsRef = useRef<{ width: number; height: number }>({
+    width: 1200,
+    height: 98
+  });
+  const preloadedImagesRef = useRef<HTMLImageElement[]>([]);
+
+  // Persistent settings state
+  const [prefs, setPrefs] = useState<PhoenixPrefs>(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) return JSON.parse(stored);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        return {
+          enabled: parsed.enabled ?? true,
+          reducedMotion: parsed.reducedMotion ?? false,
+          size: parsed.size || 'normal',
+          speed: parsed.speed || 'normal',
+          muted: parsed.muted ?? true
+        };
+      }
     } catch {
-      // Ignore
+      // Ignore storage errors
     }
-    return { minimized: false, muted: false, hidden: false };
+    return {
+      enabled: true,
+      reducedMotion: false,
+      size: 'normal',
+      speed: 'normal',
+      muted: true
+    };
   });
 
-  const [isHovered, setIsHovered] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
-  const [reaction, setReaction] = useState<'idle' | 'alert' | 'celebrate'>('idle');
-
-  // Save preferences
+  const prefsRef = useRef<PhoenixPrefs>(prefs);
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs));
-    } catch {
-      // Ignore
-    }
+    prefsRef.current = prefs;
   }, [prefs]);
 
-  // Determine context-aware status message from REAL data
-  const statusMessage = useMemo(() => {
-    if (unreadNotificationsCount > 0) {
-      const latest = notifications[0];
-      if (latest) {
-        return `${latest.title}: ${latest.message.slice(0, 50)}...`;
-      }
-      return `${unreadNotificationsCount} pending studio notifications await.`;
+  const [isCelebrating, setIsCelebrating] = useState(false);
+
+  // Avatar dimensions scaled to aspect ratio (108:104)
+  const avatarHeight = useMemo(() => {
+    switch (prefs.size) {
+      case 'compact':
+        return 52;
+      case 'large':
+        return 78;
+      case 'normal':
+      default:
+        return 65;
     }
+  }, [prefs.size]);
 
-    return 'Terminal 6 Engine Hub online. Systems nominal.';
-  }, [unreadNotificationsCount, notifications]);
+  const avatarWidth = useMemo(
+    () => Math.round(avatarHeight * (108 / 104)),
+    [avatarHeight]
+  );
 
-  // React to notification changes
+  // Preload and keep sprite images decoded in memory
   useEffect(() => {
-    if (unreadNotificationsCount > 0) {
-      setReaction('alert');
-      const timer = setTimeout(() => setReaction('idle'), 4000);
-      return () => clearTimeout(timer);
-    }
-  }, [unreadNotificationsCount]);
+    const allSrcs = [...PHOENIX_FLY_FRAMES, ...PHOENIX_HOVER_FRAMES];
+    preloadedImagesRef.current = allSrcs.map((src) => {
+      const img = new Image();
+      img.src = src;
+      return img;
+    });
 
-  if (prefs.hidden) {
-    return (
-      <div
-        style={{
-          position: 'fixed',
-          bottom: '12px',
-          right: '16px',
-          zIndex: 900,
-          pointerEvents: 'auto'
-        }}
-      >
-        <button
-          type="button"
-          onClick={() => setPrefs(p => ({ ...p, hidden: false }))}
-          className="btn btn-secondary btn-sm"
-          style={{
-            fontSize: '11px',
-            padding: '4px 8px',
-            backgroundColor: 'var(--bg-surface)',
-            borderColor: 'var(--border-subtle)',
-            color: 'var(--accent-orange)'
-          }}
-          title="Restore Cindermarch Phoenix Companion"
-        >
-          <Sparkles size={12} />
-          <span>Summon Phoenix</span>
-        </button>
-      </div>
-    );
+    return () => {
+      preloadedImagesRef.current = [];
+    };
+  }, []);
+
+  // Web Audio chime on mascot interaction
+  const playChime = useCallback(() => {
+    if (prefsRef.current.muted) return;
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
+      osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.15); // A5
+      gain.gain.setValueAtTime(0.08, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.36);
+    } catch {
+      // Audio autoplay policy or unavailable
+    }
+  }, []);
+
+  // Synchronize preferences across tabs and SettingsPage updates
+  useEffect(() => {
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === STORAGE_KEY && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          setPrefs((p) => ({ ...p, ...parsed }));
+        } catch {}
+      }
+    };
+
+    const handleCustom = (e: any) => {
+      if (e.detail) {
+        setPrefs((p) => ({ ...p, ...e.detail }));
+      }
+    };
+
+    window.addEventListener('storage', handleStorage);
+    window.addEventListener('cm_phoenix_prefs_updated', handleCustom);
+    return () => {
+      window.removeEventListener('storage', handleStorage);
+      window.removeEventListener('cm_phoenix_prefs_updated', handleCustom);
+    };
+  }, []);
+
+  // Keep corridor dimensions measured & observe window resizing
+  useEffect(() => {
+    if (!corridorRef.current) return;
+
+    const updateDimensions = () => {
+      if (corridorRef.current) {
+        const rect = corridorRef.current.getBoundingClientRect();
+        if (rect.width > 0) {
+          corridorDimsRef.current = {
+            width: rect.width,
+            height: rect.height || 98
+          };
+
+          // Re-clamp position inside new corridor boundaries smoothly
+          const bounds = getPhoenixSafeBounds(
+            rect.width,
+            rect.height || 98,
+            avatarWidth,
+            avatarHeight
+          );
+          engineStateRef.current.x = Math.max(
+            bounds.minX,
+            Math.min(bounds.maxX, engineStateRef.current.x)
+          );
+          engineStateRef.current.y = Math.max(
+            bounds.minY,
+            Math.min(bounds.maxY, engineStateRef.current.y)
+          );
+        }
+      }
+    };
+
+    updateDimensions();
+
+    const resizeObserver = new ResizeObserver(() => {
+      updateDimensions();
+    });
+
+    resizeObserver.observe(corridorRef.current);
+    window.addEventListener('resize', updateDimensions);
+
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener('resize', updateDimensions);
+    };
+  }, [avatarWidth, avatarHeight]);
+
+  // Main Authoritative Animation Frame Loop
+  useEffect(() => {
+    isMountedRef.current = true;
+    lastTimeRef.current = 0;
+
+    const runFrame = (timestamp: number) => {
+      if (!isMountedRef.current) return;
+      if (!prefsRef.current.enabled) {
+        rafIdRef.current = null;
+        return;
+      }
+
+      if (lastTimeRef.current === 0) {
+        lastTimeRef.current = timestamp;
+        rafIdRef.current = requestAnimationFrame(runFrame);
+        return;
+      }
+
+      const rawDt = (timestamp - lastTimeRef.current) / 1000;
+      lastTimeRef.current = timestamp;
+
+      const config: PhoenixEngineConfig = {
+        speedMode: prefsRef.current.speed || 'normal',
+        reducedMotion: prefsRef.current.reducedMotion,
+        avatarWidth,
+        avatarHeight,
+        corridorWidth: corridorDimsRef.current.width,
+        corridorHeight: corridorDimsRef.current.height
+      };
+
+      const isPaused = isMouseHoveredRef.current;
+      const nextState = stepPhoenixEngine(
+        engineStateRef.current,
+        config,
+        rawDt,
+        isPaused
+      );
+      engineStateRef.current = nextState;
+
+      // Apply transform directly to DOM element (no React state re-render)
+      if (avatarRef.current) {
+        avatarRef.current.style.transform = `translate3d(${nextState.x.toFixed(1)}px, ${nextState.y.toFixed(1)}px, 0) scaleX(${nextState.visualScaleX.toFixed(3)}) rotate(${nextState.bank.toFixed(1)}deg)`;
+      }
+
+      // Update image src only when frame changes
+      if (
+        imgRef.current &&
+        imgRef.current.getAttribute('src') !== nextState.currentFrameSrc
+      ) {
+        imgRef.current.src = nextState.currentFrameSrc;
+      }
+
+      rafIdRef.current = requestAnimationFrame(runFrame);
+    };
+
+    if (prefs.enabled && !document.hidden) {
+      if (rafIdRef.current === null) {
+        lastTimeRef.current = 0;
+        rafIdRef.current = requestAnimationFrame(runFrame);
+      }
+    }
+
+    return () => {
+      isMountedRef.current = false;
+      if (rafIdRef.current !== null) {
+        cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = null;
+      }
+    };
+  }, [prefs.enabled, avatarWidth, avatarHeight]);
+
+  // Pause loop when browser tab is hidden to conserve system resources
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.hidden) {
+        if (rafIdRef.current !== null) {
+          cancelAnimationFrame(rafIdRef.current);
+          rafIdRef.current = null;
+        }
+      } else if (prefsRef.current.enabled && isMountedRef.current) {
+        lastTimeRef.current = 0; // Reset timestamp so resuming does not cause a delta spike
+        if (rafIdRef.current === null) {
+          const runResume = (timestamp: number) => {
+            if (!isMountedRef.current || !prefsRef.current.enabled) {
+              rafIdRef.current = null;
+              return;
+            }
+            if (lastTimeRef.current === 0) {
+              lastTimeRef.current = timestamp;
+              rafIdRef.current = requestAnimationFrame(runResume);
+              return;
+            }
+            const rawDt = (timestamp - lastTimeRef.current) / 1000;
+            lastTimeRef.current = timestamp;
+
+            const config: PhoenixEngineConfig = {
+              speedMode: prefsRef.current.speed || 'normal',
+              reducedMotion: prefsRef.current.reducedMotion,
+              avatarWidth,
+              avatarHeight,
+              corridorWidth: corridorDimsRef.current.width,
+              corridorHeight: corridorDimsRef.current.height
+            };
+
+            const nextState = stepPhoenixEngine(
+              engineStateRef.current,
+              config,
+              rawDt,
+              isMouseHoveredRef.current
+            );
+            engineStateRef.current = nextState;
+
+            if (avatarRef.current) {
+              avatarRef.current.style.transform = `translate3d(${nextState.x.toFixed(1)}px, ${nextState.y.toFixed(1)}px, 0) scaleX(${nextState.visualScaleX.toFixed(3)}) rotate(${nextState.bank.toFixed(1)}deg)`;
+            }
+            if (
+              imgRef.current &&
+              imgRef.current.getAttribute('src') !== nextState.currentFrameSrc
+            ) {
+              imgRef.current.src = nextState.currentFrameSrc;
+            }
+
+            rafIdRef.current = requestAnimationFrame(runResume);
+          };
+
+          rafIdRef.current = requestAnimationFrame(runResume);
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [avatarWidth, avatarHeight]);
+
+  // Click on mascot (joyful celebration flare)
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    playChime();
+    setIsCelebrating(true);
+    engineStateRef.current.state = 'CELEBRATING';
+    engineStateRef.current.stateTimer = 0.75;
+    setTimeout(() => {
+      setIsCelebrating(false);
+    }, 750);
+  };
+
+  const handleMouseEnter = () => {
+    isMouseHoveredRef.current = true;
+  };
+
+  const handleMouseLeave = () => {
+    isMouseHoveredRef.current = false;
+  };
+
+  // If companion is disabled in settings, do not render corridor
+  if (!prefs.enabled) {
+    return null;
   }
 
   return (
-    <aside
-      aria-label="Cindermarch Phoenix Companion"
-      className="phoenix-dock-container"
-      style={{
-        position: 'fixed',
-        bottom: '20px',
-        right: '24px',
-        zIndex: 950,
-        pointerEvents: 'none',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'flex-end',
-        gap: '8px',
-        userSelect: 'none'
-      }}
+    <div
+      ref={corridorRef}
+      className="phoenix-flight-zone"
+      aria-label="Cindermarch Phoenix Top Flight Corridor"
     >
-      {/* Speech Bubble (only if not muted and not minimized) */}
-      {!prefs.muted && !prefs.minimized && (
-        <div
-          role="status"
-          aria-live="polite"
-          style={{
-            pointerEvents: 'auto',
-            maxWidth: '280px',
-            backgroundColor: 'rgba(18, 18, 18, 0.95)',
-            backdropFilter: 'blur(8px)',
-            border: reaction === 'alert' ? '1px solid var(--accent-orange)' : '1px solid var(--border-subtle)',
-            borderRadius: 'var(--radius-md)',
-            padding: '10px 14px',
-            boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
-            fontSize: '12px',
-            color: 'var(--text-white)',
-            lineHeight: '1.4',
-            position: 'relative',
-            animation: 'phoenix-speech-fade 0.3s ease-out'
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
-            <span
-              style={{
-                fontSize: '10px',
-                fontWeight: 800,
-                color: 'var(--accent-orange)',
-                letterSpacing: '0.5px',
-                textTransform: 'uppercase'
-              }}
-            >
-              Cindermarch Phoenix
-            </span>
-            {reaction === 'alert' && <AlertTriangle size={12} color="var(--accent-orange)" />}
-          </div>
-          <div>{statusMessage}</div>
-          <div
-            style={{
-              position: 'absolute',
-              bottom: '-6px',
-              right: '28px',
-              width: '12px',
-              height: '12px',
-              backgroundColor: 'rgba(18, 18, 18, 0.95)',
-              borderRight: reaction === 'alert' ? '1px solid var(--accent-orange)' : '1px solid var(--border-subtle)',
-              borderBottom: reaction === 'alert' ? '1px solid var(--accent-orange)' : '1px solid var(--border-subtle)',
-              transform: 'rotate(45deg)'
-            }}
-          />
-        </div>
-      )}
+      {/* Ambient Runway Visual Guide */}
+      <div className="phoenix-flight-guide" />
 
-      {/* Mascot Element + Controls Bar */}
+      {/* Subtle Studio Telemetry Tags */}
+      <div className="phoenix-flight-telemetry left">
+        <Flame size={11} color="var(--accent-orange)" />
+        <span>CIN-PHX // AIRSPACE PATROL</span>
+      </div>
+
+      <div className="phoenix-flight-telemetry right">
+        <span>
+          CORRIDOR 01 //{' '}
+          {prefs.reducedMotion
+            ? 'STATIONARY'
+            : prefs.speed === 'calm'
+            ? 'CALM PATROL'
+            : 'ACTIVE PATROL'}
+        </span>
+      </div>
+
+      {/* Roaming Animated Phoenix Character */}
       <div
+        ref={avatarRef}
+        className={`phoenix-companion-avatar ${isCelebrating ? 'celebrate-flare' : ''}`}
+        role="button"
+        tabIndex={0}
+        aria-label="Cindermarch Phoenix Companion (Patrolling top corridor)"
+        onClick={handleClick}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
         style={{
-          pointerEvents: 'auto',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px'
+          position: 'absolute',
+          left: 0,
+          top: 0,
+          width: `${avatarWidth}px`,
+          height: `${avatarHeight}px`,
+          transform: `translate3d(${engineStateRef.current.x.toFixed(1)}px, ${engineStateRef.current.y.toFixed(1)}px, 0) scaleX(${engineStateRef.current.visualScaleX.toFixed(3)}) rotate(${engineStateRef.current.bank.toFixed(1)}deg)`,
+          transformOrigin: 'center center',
+          transition: 'none',
+          willChange: 'transform'
         }}
       >
-        {/* Controls Overlay when hovered */}
-        {isHovered && (
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px',
-              backgroundColor: 'rgba(26, 26, 26, 0.95)',
-              border: '1px solid var(--border-subtle)',
-              borderRadius: '20px',
-              padding: '2px 6px',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
-              animation: 'phoenix-speech-fade 0.2s ease-out'
-            }}
-          >
-            <button
-              type="button"
-              onClick={() => setPrefs(p => ({ ...p, muted: !p.muted }))}
-              title={prefs.muted ? 'Unmute speech' : 'Mute speech'}
-              style={{
-                background: 'none',
-                border: 'none',
-                padding: '4px',
-                color: prefs.muted ? 'var(--text-secondary)' : 'var(--accent-orange)',
-                cursor: 'pointer'
-              }}
-            >
-              {prefs.muted ? <VolumeX size={14} /> : <Volume2 size={14} />}
-            </button>
-            <button
-              type="button"
-              onClick={() => setPrefs(p => ({ ...p, minimized: !p.minimized }))}
-              title={prefs.minimized ? 'Expand companion' : 'Minimize companion'}
-              style={{
-                background: 'none',
-                border: 'none',
-                padding: '4px',
-                color: 'var(--text-secondary)',
-                cursor: 'pointer'
-              }}
-            >
-              {prefs.minimized ? <ChevronUp size={14} /> : <Minus size={14} />}
-            </button>
-            <button
-              type="button"
-              onClick={() => setPrefs(p => ({ ...p, hidden: true }))}
-              title="Hide companion"
-              style={{
-                background: 'none',
-                border: 'none',
-                padding: '4px',
-                color: 'var(--text-secondary)',
-                cursor: 'pointer'
-              }}
-            >
-              <EyeOff size={14} />
-            </button>
-          </div>
-        )}
+        {/* Ember Aura Glow */}
+        <div className="phoenix-ember-aura" />
 
-        {/* Mascot Avatar Widget */}
-        <div
-          onMouseEnter={() => setIsHovered(true)}
-          onMouseLeave={() => setIsHovered(false)}
-          onClick={() => setPrefs(p => ({ ...p, minimized: !p.minimized }))}
-          role="button"
-          tabIndex={0}
-          title="Cindermarch Studio Phoenix Companion (Click to toggle)"
-          style={{
-            width: prefs.minimized ? '36px' : '58px',
-            height: prefs.minimized ? '36px' : '58px',
-            borderRadius: '50%',
-            backgroundColor: '#0D0D0D',
-            border: reaction === 'alert' ? '2px solid var(--accent-orange)' : '1px solid rgba(255,106,0,0.4)',
-            boxShadow: reaction === 'alert'
-              ? '0 0 20px rgba(255, 106, 0, 0.7)'
-              : '0 4px 16px rgba(0,0,0,0.8), 0 0 12px rgba(255,106,0,0.25)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-            position: 'relative'
+        {/* Hover Rune Ring */}
+        <div className="phoenix-hover-ring" />
+
+        {/* Rendered Phoenix Sprite Frame from supplied sprite sheet */}
+        <img
+          ref={imgRef}
+          src={engineStateRef.current.currentFrameSrc}
+          alt="Cindermarch Flying Phoenix Mascot"
+          className="phoenix-sprite-img"
+          draggable={false}
+          onError={(e) => {
+            (e.target as HTMLImageElement).src = '/assets/phoenix/fly_0.png';
           }}
-          className={`phoenix-mascot-orb ${reaction}`}
-        >
-          {/* Cindermarch Phoenix SVG Artwork */}
-          <svg
-            viewBox="0 0 100 100"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-            style={{
-              width: prefs.minimized ? '26px' : '44px',
-              height: prefs.minimized ? '26px' : '44px',
-              transition: 'transform 0.3s ease',
-              filter: 'drop-shadow(0 0 4px rgba(255,106,0,0.5))'
-            }}
-            className="phoenix-mascot-svg"
-          >
-            <defs>
-              <linearGradient id="phFlame" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#FFA14A" />
-                <stop offset="50%" stopColor="#FF6A00" />
-                <stop offset="100%" stopColor="#D94B00" />
-              </linearGradient>
-              <linearGradient id="phMetal" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" stopColor="#F5F5F5" />
-                <stop offset="50%" stopColor="#C0C0C0" />
-                <stop offset="100%" stopColor="#888888" />
-              </linearGradient>
-            </defs>
-
-            {/* Crest & Head Profile */}
-            <path
-              d="M50 18 C52 14 56 12 60 14 C56 17 54 20 54 23 C58 20 63 21 66 24 C62 26 58 28 55 28 C57 32 55 35 50 36 C47 33 46 29 48 25 C47 23 45 20 50 18 Z"
-              fill="url(#phFlame)"
-            />
-            {/* Beak */}
-            <path
-              d="M48 24 L42 27 L48 29 Z"
-              fill="#FFFFFF"
-            />
-            {/* Eye */}
-            <circle cx="51" cy="25" r="1.5" fill="#FFFFFF" />
-
-            {/* Left Wing (Layered industrial feathers) */}
-            <g className="phoenix-wing-left">
-              <path
-                d="M46 36 C38 28 26 22 14 26 C22 32 30 38 38 46 C28 42 20 42 16 46 C24 50 32 54 39 58 C30 57 24 60 22 64 C30 66 38 66 45 64 Z"
-                fill="url(#phFlame)"
-              />
-              <path
-                d="M44 38 C36 32 26 28 16 32 C23 37 31 43 38 50 Z"
-                fill="url(#phMetal)"
-                opacity="0.8"
-              />
-            </g>
-
-            {/* Right Wing (Layered industrial feathers) */}
-            <g className="phoenix-wing-right">
-              <path
-                d="M54 36 C62 28 74 22 86 26 C78 32 70 38 62 46 C72 42 80 42 84 46 C76 50 68 54 61 58 C70 57 76 60 78 64 C70 66 62 66 55 64 Z"
-                fill="url(#phFlame)"
-              />
-              <path
-                d="M56 38 C64 32 74 28 84 32 C77 37 69 43 62 50 Z"
-                fill="url(#phMetal)"
-                opacity="0.8"
-              />
-            </g>
-
-            {/* Center Flame Torso */}
-            <path
-              d="M50 34 C55 42 56 52 50 62 C44 52 45 42 50 34 Z"
-              fill="#FFFFFF"
-            />
-            <path
-              d="M50 38 C54 44 54 50 50 56 C46 50 46 44 50 38 Z"
-              fill="url(#phFlame)"
-            />
-
-            {/* Tail Plumage */}
-            <path
-              d="M50 64 L46 76 L50 86 L54 76 Z"
-              fill="url(#phFlame)"
-            />
-            <path
-              d="M48 64 L42 74 L46 82 L48 72 Z"
-              fill="#D94B00"
-            />
-            <path
-              d="M52 64 L58 74 L54 82 L52 72 Z"
-              fill="#D94B00"
-            />
-          </svg>
-
-          {/* Pulse beacon dot when unread notifications */}
-          {unreadNotificationsCount > 0 && (
-            <span
-              style={{
-                position: 'absolute',
-                top: '-2px',
-                right: '-2px',
-                width: '10px',
-                height: '10px',
-                borderRadius: '50%',
-                backgroundColor: 'var(--accent-orange)',
-                boxShadow: '0 0 8px var(--accent-orange)'
-              }}
-            />
-          )}
-        </div>
+        />
       </div>
-    </aside>
+    </div>
   );
 };

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { History, Filter, Search } from 'lucide-react';
 import { apiRequest } from '../api/client.js';
+import { useAuth } from '../context/AuthContext.js';
 
 interface ActivityPageProps {
   onNavigateToTask: (taskId: string) => void;
@@ -8,6 +9,7 @@ interface ActivityPageProps {
 }
 
 export const ActivityPage: React.FC<ActivityPageProps> = ({ onNavigateToTask, teamUsers = [] }) => {
+  const { activeProjectId } = useAuth();
   const [activities, setActivities] = useState<any[]>([]);
   const [total, setTotal] = useState<number>(0);
   const [actorFilter, setActorFilter] = useState('');
@@ -73,7 +75,7 @@ export const ActivityPage: React.FC<ActivityPageProps> = ({ onNavigateToTask, te
     <div className="page-wrapper">
       <div className="page-header">
         <div className="page-title-group">
-          <h1>Terminal 6 // Auditable Activity Log</h1>
+          <h1>{activeProjectId === 'eclipsed' ? 'Eclipsed' : 'Terminal 6'} // Auditable Activity Log</h1>
           <p>Chronological, immutable event audit log of all task updates, reviews, and test runs.</p>
         </div>
       </div>

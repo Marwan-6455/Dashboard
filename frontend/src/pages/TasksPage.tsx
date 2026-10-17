@@ -49,13 +49,20 @@ const STATUS_COLUMNS: TaskStatus[] = [
 
 const CATEGORIES = [
   'Gameplay',
+  'Level Design',
+  'Combat & Bosses',
+  'Movement & Physics',
+  'Abilities & Upgrades',
+  'Exploration & Progression',
   'Engine',
   'Graphics/Shaders',
-  'Audio',
-  'Physics',
+  'Art & Animation',
+  'Audio & SFX',
+  'Narrative & Lore',
   'Tooling',
   'UI/UX',
-  'Optimization'
+  'Optimization',
+  'QA & Testing'
 ];
 
 const STUDIO_TEAMS = [
@@ -78,7 +85,7 @@ export const TasksPage: React.FC<TasksPageProps> = ({
   initialFilterOwner,
   teamUsers = []
 }) => {
-  const { user } = useAuth();
+  const { user, activeProjectId } = useAuth();
   const toast = useToast();
 
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -108,6 +115,7 @@ export const TasksPage: React.FC<TasksPageProps> = ({
     try {
       setIsLoading(true);
       const query = new URLSearchParams();
+      if (activeProjectId) query.set('projectId', activeProjectId);
       if (statusFilter) query.set('status', statusFilter);
       if (teamFilter) query.set('teamId', teamFilter);
       if (ownerFilter) query.set('ownerId', ownerFilter);
@@ -153,7 +161,7 @@ export const TasksPage: React.FC<TasksPageProps> = ({
 
   useEffect(() => {
     fetchTasks();
-  }, [statusFilter, teamFilter, ownerFilter, categoryFilter, priorityFilter, searchQuery, activeTab]);
+  }, [statusFilter, teamFilter, ownerFilter, categoryFilter, priorityFilter, searchQuery, activeTab, activeProjectId]);
 
   // Client-side sorting for responsive instant ordering
   const sortedTasks = useMemo(() => {
@@ -264,7 +272,7 @@ export const TasksPage: React.FC<TasksPageProps> = ({
       {/* Page Header */}
       <div className="page-header">
         <div className="page-title-group">
-          <h1>Terminal 6 // Development Tasks</h1>
+          <h1>{activeProjectId === 'eclipsed' ? 'Eclipsed' : 'Terminal 6'} // Development Tasks</h1>
           <p>
             Track technical scope, 6 verification completion gates, milestone deadlines, and peer reviews.
           </p>

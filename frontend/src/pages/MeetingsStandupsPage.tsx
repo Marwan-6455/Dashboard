@@ -85,7 +85,7 @@ export const MeetingsStandupsPage: React.FC = () => {
   // Projects lookup
   const projectsList = [
     { id: 'terminal-6', name: 'Terminal 6 (Psychological Horror)' },
-    { id: 'blue-note-lounge', name: 'Blue Note Lounge (Noir Mystery)' }
+    { id: 'eclipsed', name: 'Eclipsed (2D Metroidvania)' }
   ];
 
   const fetchData = async () => {

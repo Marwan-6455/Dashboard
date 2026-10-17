@@ -30,7 +30,6 @@ const standupMeetingRoutes_js_1 = require("./routes/standupMeetingRoutes.js");
 const buildReleaseRoutes_js_1 = require("./routes/buildReleaseRoutes.js");
 const marketingRoutes_js_1 = require("./routes/marketingRoutes.js");
 const searchRoutes_js_1 = require("./routes/searchRoutes.js");
-const aiRoutes_js_1 = require("./routes/aiRoutes.js");
 const path_1 = __importDefault(require("path"));
 const fs_1 = __importDefault(require("fs"));
 const errorHandler_js_1 = require("./middleware/errorHandler.js");
@@ -76,7 +75,6 @@ exports.app.use('/api', standupMeetingRoutes_js_1.standupMeetingRouter);
 exports.app.use('/api', buildReleaseRoutes_js_1.buildReleaseRouter);
 exports.app.use('/api/marketing', marketingRoutes_js_1.marketingRouter);
 exports.app.use('/api/search', searchRoutes_js_1.searchRouter);
-exports.app.use('/api/ai', aiRoutes_js_1.aiRouter);
 // Centralized error handler
 exports.app.use(errorHandler_js_1.errorHandler);
 // Production Static Frontend Serving

@@ -21,6 +21,8 @@ CREATE TABLE IF NOT EXISTS workspaces (
   name TEXT NOT NULL,
   slug TEXT UNIQUE NOT NULL,
   owner_id TEXT NOT NULL REFERENCES users(id),
+  primary_owner_id TEXT REFERENCES users(id),
+  super_admin_limit INTEGER NOT NULL DEFAULT 2,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
@@ -30,7 +32,8 @@ CREATE TABLE IF NOT EXISTS workspace_members (
   id TEXT PRIMARY KEY,
   workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  role TEXT NOT NULL CHECK(role IN ('owner', 'admin', 'developer', 'reviewer')),
+  role TEXT NOT NULL CHECK(role IN ('owner', 'super_admin', 'admin', 'team_manager', 'team_member', 'developer', 'reviewer')),
+  status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active', 'pending_approval', 'suspended', 'rejected')),
   joined_at TEXT NOT NULL,
   is_suspended INTEGER NOT NULL DEFAULT 0,
   suspended_at TEXT,
@@ -750,18 +753,21 @@ CREATE TABLE IF NOT EXISTS marketing_items (
 );
 CREATE INDEX IF NOT EXISTS idx_mkt_proj ON marketing_items(project_id);
 
--- AI Conversations & Auditing
-CREATE TABLE IF NOT EXISTS ai_conversations (
+-- Admin Audit Log
+CREATE TABLE IF NOT EXISTS admin_audit_log (
   id TEXT PRIMARY KEY,
-  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  workspace_id TEXT NOT NULL,
-  project_id TEXT,
-  prompt TEXT NOT NULL,
-  response TEXT NOT NULL,
-  citations_json TEXT,
-  drafted_actions_json TEXT,
-  model_used TEXT NOT NULL,
+  workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+  actor_id TEXT NOT NULL REFERENCES users(id),
+  actor_name TEXT NOT NULL,
+  action TEXT NOT NULL,
+  target_type TEXT NOT NULL,
+  target_id TEXT,
+  target_name TEXT,
+  details_json TEXT,
+  reason TEXT,
+  ip_address TEXT,
   created_at TEXT NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_ai_user ON ai_conversations(user_id);
+CREATE INDEX IF NOT EXISTS idx_audit_ws ON admin_audit_log(workspace_id);
+CREATE INDEX IF NOT EXISTS idx_audit_created ON admin_audit_log(created_at);
 `;

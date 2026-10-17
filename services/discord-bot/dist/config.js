@@ -1,7 +1,23 @@
-try {
-    process.loadEnvFile?.();
+import path from 'node:path';
+import fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const candidateEnvPaths = [
+    path.resolve(process.cwd(), '.env'),
+    path.resolve(__dirname, '../../../.env'),
+    path.resolve(__dirname, '../../.env'),
+    path.resolve(__dirname, '../.env')
+];
+for (const envPath of candidateEnvPaths) {
+    if (fs.existsSync(envPath)) {
+        try {
+            process.loadEnvFile?.(envPath);
+            break;
+        }
+        catch { }
+    }
 }
-catch { }
 export const CONFIG = {
     BOT_TOKEN: process.env.DISCORD_BOT_TOKEN || '',
     CLIENT_ID: process.env.DISCORD_CLIENT_ID || '1560406066867478681',

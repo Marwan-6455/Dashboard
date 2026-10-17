@@ -1,4 +1,14 @@
-export type UserRole = 'owner' | 'admin' | 'developer' | 'reviewer';
+export type UserRole =
+  | 'owner'
+  | 'super_admin'
+  | 'admin'
+  | 'team_manager'
+  | 'team_member'
+  | 'developer'
+  | 'reviewer'
+  | 'designer'
+  | 'qa'
+  | 'lead';
 
 export interface User {
   id: string;
@@ -15,6 +25,23 @@ export interface Workspace {
   name: string;
   slug: string;
   role: UserRole;
+  primary_owner_id?: string | null;
+  super_admin_limit?: number;
+}
+
+export interface AdminAuditEntry {
+  id: string;
+  workspace_id: string;
+  actor_id: string;
+  actor_name: string;
+  action: string;
+  target_type: string;
+  target_id?: string | null;
+  target_name?: string | null;
+  details_json?: string | null;
+  reason?: string | null;
+  ip_address?: string | null;
+  created_at: string;
 }
 
 export interface WorkspaceInvitation {
@@ -696,29 +723,6 @@ export interface MarketingItem {
   external_url?: string | null;
   deliverables?: string | null;
   created_at: string;
-}
-
-export interface AICitation {
-  type: string;
-  id: string;
-  title: string;
-  url: string;
-}
-
-export interface AIDraftedAction {
-  actionType: string;
-  title: string;
-  description: string;
-  payload: Record<string, any>;
-  requiresConfirmation: boolean;
-}
-
-export interface AIResponse {
-  answer: string;
-  citations: AICitation[];
-  draftedActions?: AIDraftedAction[];
-  model: string;
-  source: 'gemini_flash_api' | 'authoritative_studio_engine';
 }
 
 export interface SearchResultItem {

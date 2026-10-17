@@ -70,13 +70,13 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onNavigate }) => {
 
   const activeProject = projects.find((p) => p.id === activeProjectId) || {
     id: activeProjectId,
-    name: activeProjectId === 'blue-note-lounge' ? 'Blue Note Lounge' : 'Terminal 6',
+    name: activeProjectId === 'eclipsed' ? 'Eclipsed' : 'Terminal 6',
     description:
-      activeProjectId === 'blue-note-lounge'
-        ? 'Noir mystery narrative game set in an evocative retro jazz lounge.'
+      activeProjectId === 'eclipsed'
+        ? 'Atmospheric 2D metroidvania game developed by Cindermarch Studio.'
         : 'Psychological horror game set around an abandoned, reality-shifting train station.',
     repository_id:
-      activeProjectId === 'blue-note-lounge' ? 'BlueNote-Main@cindermarch' : 'Terminal6-Main@cindermarch',
+      activeProjectId === 'eclipsed' ? 'Eclipsed-Main@cindermarch' : 'Terminal6-Main@cindermarch',
     unity_version: '6000.0.25f1',
     status: 'active' as const,
     created_at: new Date().toISOString()
@@ -161,10 +161,10 @@ export const ProjectsPage: React.FC<ProjectsPageProps> = ({ onNavigate }) => {
           </button>
           <button
             type="button"
-            className={`btn ${activeProjectId === 'blue-note-lounge' ? 'btn-primary' : 'btn-secondary'}`}
-            onClick={() => setActiveProjectId('blue-note-lounge')}
+            className={`btn ${activeProjectId === 'eclipsed' ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={() => setActiveProjectId('eclipsed')}
           >
-            Blue Note Lounge (Noir)
+            Eclipsed (Metroidvania)
           </button>
         </div>
       </div>

@@ -162,7 +162,7 @@ teamRouter.post('/teams', (req: AuthenticatedRequest, res: Response): void => {
 
   // Authorization check: Owner or Admin only
   const callerRoles = JSON.parse(req.user?.roles || '[]');
-  const isOwnerOrAdmin = callerRoles.includes('owner') || callerRoles.includes('admin');
+  const isOwnerOrAdmin = callerRoles.includes('owner') || callerRoles.includes('super_admin') || callerRoles.includes('admin');
   if (!isOwnerOrAdmin) {
     res.status(403).json({ error: 'Only workspace owners or admins can create new teams.' });
     return;
@@ -393,9 +393,9 @@ teamRouter.post('/:id/members', (req: AuthenticatedRequest, res: Response): void
     return;
   }
 
-  // Authorization check: Workspace Owner, Admin, or the Team Manager
+  // Authorization check: Workspace Owner, Super Admin, Admin, or the Team Manager
   const callerRoles = JSON.parse(req.user?.roles || '[]');
-  const isOwnerOrAdmin = callerRoles.includes('owner') || callerRoles.includes('admin');
+  const isOwnerOrAdmin = callerRoles.includes('owner') || callerRoles.includes('super_admin') || callerRoles.includes('admin');
   const isTeamManager = team.manager_id === req.user?.id;
 
   if (!isOwnerOrAdmin && !isTeamManager) {
@@ -433,7 +433,7 @@ teamRouter.delete('/:id/members/:userId', (req: AuthenticatedRequest, res: Respo
   }
 
   const callerRoles = JSON.parse(req.user?.roles || '[]');
-  const isOwnerOrAdmin = callerRoles.includes('owner') || callerRoles.includes('admin');
+  const isOwnerOrAdmin = callerRoles.includes('owner') || callerRoles.includes('super_admin') || callerRoles.includes('admin');
   const isTeamManager = team.manager_id === req.user?.id;
 
   if (!isOwnerOrAdmin && !isTeamManager && req.user?.id !== userId) {
@@ -460,7 +460,7 @@ teamRouter.patch('/:id', (req: AuthenticatedRequest, res: Response): void => {
   const team = db.prepare('SELECT * FROM teams WHERE (id = ? OR slug = ?) AND workspace_id = ?').get(targetId, targetId, workspaceId) as any;
   if (team) {
     const callerRoles = JSON.parse(req.user?.roles || '[]');
-    const isOwnerOrAdmin = callerRoles.includes('owner') || callerRoles.includes('admin');
+    const isOwnerOrAdmin = callerRoles.includes('owner') || callerRoles.includes('super_admin') || callerRoles.includes('admin');
     const isTeamManager = team.manager_id === req.user?.id;
 
     if (!isOwnerOrAdmin && !isTeamManager) {
@@ -503,7 +503,7 @@ teamRouter.patch('/:id', (req: AuthenticatedRequest, res: Response): void => {
   }
 
   const callerRoles = JSON.parse(req.user?.roles || '[]');
-  const isOwnerOrAdmin = callerRoles.includes('owner') || callerRoles.includes('admin');
+  const isOwnerOrAdmin = callerRoles.includes('owner') || callerRoles.includes('super_admin') || callerRoles.includes('admin');
   if (!isOwnerOrAdmin && req.user?.id !== targetId) {
     res.status(403).json({ error: 'Not authorized to update this user.' });
     return;
@@ -512,7 +512,14 @@ teamRouter.patch('/:id', (req: AuthenticatedRequest, res: Response): void => {
   const { displayName, roles, avatarUrl } = req.body;
   const now = new Date().toISOString();
   const newDisplayName = displayName?.trim() || user.display_name;
-  const newRoles = roles ? JSON.stringify(roles) : user.roles;
+  let newRoles = user.roles;
+  if (roles && Array.isArray(roles) && isOwnerOrAdmin) {
+    const filteredRoles = roles.filter((r: string) => r !== 'super_admin' && r !== 'owner');
+    const existingRoles = JSON.parse(user.roles || '[]');
+    if (existingRoles.includes('owner')) filteredRoles.unshift('owner');
+    if (existingRoles.includes('super_admin')) filteredRoles.unshift('super_admin');
+    newRoles = JSON.stringify(filteredRoles);
+  }
   const newAvatarUrl = avatarUrl !== undefined ? avatarUrl : user.avatar_url;
 
   db.prepare(`

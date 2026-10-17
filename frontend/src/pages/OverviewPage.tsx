@@ -12,7 +12,7 @@ import {
   Plus,
   Users,
   Layers,
-  Sparkles,
+  Library,
   BookOpen,
   Code,
   Megaphone,
@@ -48,11 +48,11 @@ const getTeamIcon = (slugOrName: string) => {
 };
 
 export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate, onOpenNewTaskModal }) => {
-  const { user } = useAuth();
+  const { user, activeProjectId } = useAuth();
   const [data, setData] = useState<any>(null);
   const [myStrikes, setMyStrikes] = useState<any>(null);
   const [terminalHealth, setTerminalHealth] = useState<any>(null);
-  const [blueNoteHealth, setBlueNoteHealth] = useState<any>(null);
+  const [eclipsedHealth, setEclipsedHealth] = useState<any>(null);
   const [activeBugs, setActiveBugs] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -60,11 +60,11 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate, onOpenNe
   const loadData = async () => {
     try {
       setIsLoading(true);
-      const [statsRes, strikeRes, t6Res, bnlRes, bugsRes] = await Promise.allSettled([
+      const [statsRes, strikeRes, t6Res, eclRes, bugsRes] = await Promise.allSettled([
         apiRequest('/api/stats/overview'),
         apiRequest('/api/strikes/my-status'),
         apiRequest('/api/projects/terminal-6/health'),
-        apiRequest('/api/projects/blue-note-lounge/health'),
+        apiRequest('/api/projects/eclipsed/health'),
         apiRequest('/api/bugs?status=Reported')
       ]);
 
@@ -80,8 +80,8 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate, onOpenNe
       if (t6Res.status === 'fulfilled') {
         setTerminalHealth(t6Res.value);
       }
-      if (bnlRes.status === 'fulfilled') {
-        setBlueNoteHealth(bnlRes.value);
+      if (eclRes.status === 'fulfilled') {
+        setEclipsedHealth(eclRes.value);
       }
       if (bugsRes.status === 'fulfilled') {
         setActiveBugs(bugsRes.value.bugs || []);
@@ -128,7 +128,7 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate, onOpenNe
       <div className="page-wrapper">
         <div style={{ color: 'var(--text-secondary)', padding: '60px 0', textAlign: 'center' }}>
           <div style={{ display: 'inline-block', width: '32px', height: '32px', border: '2px solid var(--accent-orange)', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite', marginBottom: '16px' }} />
-          <div>Synchronizing Terminal 6 Studio Command Center...</div>
+          <div>Synchronizing {activeProjectId === 'eclipsed' ? 'Eclipsed' : 'Terminal 6'} Studio Command Center...</div>
         </div>
       </div>
     );
@@ -189,7 +189,7 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate, onOpenNe
                 textTransform: 'uppercase'
               }}
             >
-              COMMAND CENTER // TERMINAL 6
+              COMMAND CENTER // {activeProjectId === 'eclipsed' ? 'ECLIPSED' : 'TERMINAL 6'}
             </span>
             <span style={{ color: 'var(--text-muted)' }}>•</span>
             <span className="mono" style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
@@ -537,7 +537,7 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate, onOpenNe
             </div>
           </div>
 
-          {/* Blue Note Lounge Card */}
+          {/* Eclipsed Card */}
           <div
             style={{
               padding: '16px',
@@ -551,11 +551,11 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate, onOpenNe
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
               <div>
-                <span style={{ fontSize: '10px', fontWeight: 800, color: '#38BDF8', letterSpacing: '0.05em' }}>
-                  PROJECT BNL
+                <span style={{ fontSize: '10px', fontWeight: 800, color: '#A855F7', letterSpacing: '0.05em' }}>
+                  PROJECT ECL
                 </span>
                 <h4 style={{ fontSize: '15px', fontWeight: 800, color: 'var(--text-white)', margin: '2px 0 0' }}>
-                  Blue Note Lounge
+                  Eclipsed
                 </h4>
               </div>
               <span
@@ -565,52 +565,52 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate, onOpenNe
                   padding: '3px 8px',
                   borderRadius: '12px',
                   backgroundColor:
-                    (blueNoteHealth?.health === 'healthy' || blueNoteHealth?.status === 'Healthy')
+                    (eclipsedHealth?.health === 'healthy' || eclipsedHealth?.status === 'Healthy')
                       ? 'rgba(16, 185, 129, 0.15)'
-                      : (blueNoteHealth?.health === 'blocked' || blueNoteHealth?.status === 'Blocked')
+                      : (eclipsedHealth?.health === 'blocked' || eclipsedHealth?.status === 'Blocked')
                       ? 'rgba(239, 68, 68, 0.15)'
                       : 'rgba(245, 158, 11, 0.15)',
                   color:
-                    (blueNoteHealth?.health === 'healthy' || blueNoteHealth?.status === 'Healthy')
+                    (eclipsedHealth?.health === 'healthy' || eclipsedHealth?.status === 'Healthy')
                       ? '#10B981'
-                      : (blueNoteHealth?.health === 'blocked' || blueNoteHealth?.status === 'Blocked')
+                      : (eclipsedHealth?.health === 'blocked' || eclipsedHealth?.status === 'Blocked')
                       ? '#EF4444'
                       : '#F59E0B',
                   border: `1px solid ${
-                    (blueNoteHealth?.health === 'healthy' || blueNoteHealth?.status === 'Healthy')
+                    (eclipsedHealth?.health === 'healthy' || eclipsedHealth?.status === 'Healthy')
                       ? 'rgba(16, 185, 129, 0.3)'
-                      : (blueNoteHealth?.health === 'blocked' || blueNoteHealth?.status === 'Blocked')
+                      : (eclipsedHealth?.health === 'blocked' || eclipsedHealth?.status === 'Blocked')
                       ? 'rgba(239, 68, 68, 0.3)'
                       : 'rgba(245, 158, 11, 0.3)'
                   }`
                 }}
               >
-                {((blueNoteHealth?.health || blueNoteHealth?.status) || 'CALCULATING').toUpperCase().replace('_', ' ')}
+                {((eclipsedHealth?.health || eclipsedHealth?.status) || 'CALCULATING').toUpperCase().replace('_', ' ')}
               </span>
             </div>
 
             <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '10px', height: '34px', overflow: 'hidden' }}>
-              Noir jazz club detective mystery. Branching narrative dialogue and acoustic soundscapes.
+              Atmospheric 2D metroidvania game featuring fluid combat, exploration, and upgrade progression.
             </p>
 
             <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginBottom: '8px' }}>
-              {blueNoteHealth?.reasons?.length > 0 ? (
+              {eclipsedHealth?.reasons?.length > 0 ? (
                 <div style={{ color: 'var(--accent-orange)', display: 'flex', alignItems: 'center', gap: '4px' }}>
                   <AlertTriangle size={12} />
-                  <span>{blueNoteHealth.reasons[0]}</span>
+                  <span>{eclipsedHealth.reasons[0]}</span>
                 </div>
               ) : (
                 <div style={{ color: '#10B981', display: 'flex', alignItems: 'center', gap: '4px' }}>
                   <CheckCircle2 size={12} />
-                  <span>Production milestones and lore canon healthy.</span>
+                  <span>Production milestones and systems nominal.</span>
                 </div>
               )}
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text-muted)', borderTop: '1px solid var(--border-subtle)', paddingTop: '8px' }}>
-              <span>Critical Bugs: <strong style={{ color: (blueNoteHealth?.metrics?.criticalBugs || 0) > 0 ? '#EF4444' : 'var(--text-white)' }}>{blueNoteHealth?.metrics?.criticalBugs || 0}</strong></span>
-              <span>Blocked Tasks: <strong style={{ color: (blueNoteHealth?.metrics?.blockedTasks || 0) > 0 ? '#EF4444' : 'var(--text-white)' }}>{blueNoteHealth?.metrics?.blockedTasks || 0}</strong></span>
-              <span>Overdue: <strong style={{ color: 'var(--text-white)' }}>{blueNoteHealth?.metrics?.overdueTasks || 0}</strong></span>
+              <span>Critical Bugs: <strong style={{ color: (eclipsedHealth?.metrics?.criticalBugs || 0) > 0 ? '#EF4444' : 'var(--text-white)' }}>{eclipsedHealth?.metrics?.criticalBugs || 0}</strong></span>
+              <span>Blocked Tasks: <strong style={{ color: (eclipsedHealth?.metrics?.blockedTasks || 0) > 0 ? '#EF4444' : 'var(--text-white)' }}>{eclipsedHealth?.metrics?.blockedTasks || 0}</strong></span>
+              <span>Overdue: <strong style={{ color: 'var(--text-white)' }}>{eclipsedHealth?.metrics?.overdueTasks || 0}</strong></span>
             </div>
           </div>
         </div>
@@ -629,8 +629,8 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate, onOpenNe
           <button className="btn btn-secondary btn-sm" onClick={() => onNavigate('story-bible')} style={{ fontSize: '11.5px' }}>
             <BookOpen size={13} color="#F59E0B" /> Story Bible
           </button>
-          <button className="btn btn-secondary btn-sm" onClick={() => onNavigate('ai-assistant')} style={{ fontSize: '11.5px' }}>
-            <Sparkles size={13} color="#A855F7" /> Cindermarch AI Assistant
+          <button className="btn btn-secondary btn-sm" onClick={() => onNavigate('wiki')} style={{ fontSize: '11.5px' }}>
+            <Library size={13} color="#A855F7" /> Studio Wiki & ADRs
           </button>
         </div>
       </div>

@@ -301,7 +301,7 @@ To ensure the Cindermarch Studio Operating System remains 100% operational when 
 |  - REST APIs        |                                         |  - Notifications  |
 |  - Task Machine     |                                         +-------------------+
 |  - Strike Engine    |                                                   |
-|  - Gemini AI Client |                                             Discord API
+|  - Unified Search   |                                             Discord API
 +---------------------+
      |             |
      v             v
@@ -322,7 +322,7 @@ To ensure the Cindermarch Studio Operating System remains 100% operational when 
    ```bash
    cp .env.example .env
    nano .env
-   # Set CLIENT_ORIGIN, SESSION_SECRET, INTERNAL_BOT_API_KEY, DISCORD_BOT_TOKEN, GEMINI_API_KEY
+   # Set CLIENT_ORIGIN, SESSION_SECRET, INTERNAL_BOT_API_KEY, DISCORD_BOT_TOKEN
    ```
 3. Boot full multi-container stack:
    ```bash
@@ -368,8 +368,6 @@ services:
         value: 3001
       - key: SESSION_SECRET
         generateValue: true
-      - key: GEMINI_API_KEY
-        sync: false
       - key: DISCORD_BOT_TOKEN
         sync: false
       - key: INTERNAL_BOT_API_KEY
@@ -394,15 +392,4 @@ services:
 ```
 
 ---
-
-## 10. Gemini Flash 3.8 / 2.5 Hosted AI Assistant Setup
-
-1. Obtain API key from Google AI Studio:
-   [https://aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey)
-2. Add to cloud environment:
-   ```
-   GEMINI_API_KEY=AIzaSy...
-   ```
-3. The server uses `gemini-2.5-flash` natively through Google Gemini API. If no key is set or the API is unreachable, the system automatically falls back to the internal authoritative studio telemetry engine with zero downtime.
-4. All prompts are strictly permission-scoped to the user's workspace, teams, and active project (`terminal-6` or `blue-note-lounge`).
 

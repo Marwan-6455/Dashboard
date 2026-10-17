@@ -130,7 +130,7 @@ integrationRouter.get('/discord', authMiddleware, (req: AuthenticatedRequest, re
   const webhookConfig = cfgRow ? JSON.parse(cfgRow.value_json) : { status: 'not_configured' };
 
   // Check bot credentials in environment (never expose token secret!)
-  const botToken = process.env.DISCORD_BOT_TOKEN || 'MTU2MDQwNjA2Njg2NzQ3ODY4MQ.GPwk7H.Bdbpc28fLhL2oP43r9FOBGQKd1FBYyg9KJKGbE';
+  const botToken = process.env.DISCORD_BOT_TOKEN || '';
   const clientId = process.env.DISCORD_CLIENT_ID || '1560406066867478681';
   const guildId = process.env.DISCORD_GUILD_ID || '1394770347030483034';
 

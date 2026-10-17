@@ -744,4 +744,15 @@ function runMigrations(db) {
             console.error('Error applying migration 007:', err);
         }
     }
+    // 008: Safe retirement of AI Assistant feature (retains historical records non-destructively)
+    const migration008 = db.prepare('SELECT id FROM _migrations WHERE name = ?').get('008_retire_ai_assistant');
+    if (!migration008) {
+        try {
+            db.prepare('INSERT INTO _migrations (name, applied_at) VALUES (?, ?)').run('008_retire_ai_assistant', new Date().toISOString());
+            console.log('Migration 008 (retire_ai_assistant) recorded successfully.');
+        }
+        catch (err) {
+            console.error('Error applying migration 008:', err);
+        }
+    }
 }

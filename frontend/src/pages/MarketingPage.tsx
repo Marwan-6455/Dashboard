@@ -262,8 +262,8 @@ export const MarketingPage: React.FC = () => {
             >
               {activeProjectId === 'terminal-6'
                 ? 'TERMINAL 6'
-                : activeProjectId === 'blue-note-lounge'
-                ? 'BLUE NOTE LOUNGE'
+                : activeProjectId === 'eclipsed'
+                ? 'ECLIPSED'
                 : 'STUDIO-WIDE'}
             </span>
           </div>

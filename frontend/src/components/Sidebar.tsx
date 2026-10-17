@@ -24,8 +24,8 @@ import {
   Library,
   GitPullRequest,
   CalendarCheck,
-  Sparkles,
-  Megaphone
+  Megaphone,
+  ShieldCheck
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.js';
 
@@ -59,6 +59,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const { user, logout, activeWorkspace, unreadNotificationsCount } = useAuth();
 
+  const isSuperAdminOrOwner =
+    user?.roles?.includes('owner') ||
+    user?.roles?.includes('super_admin') ||
+    user?.roles?.includes('admin') ||
+    activeWorkspace?.role === 'owner' ||
+    activeWorkspace?.role === 'super_admin' ||
+    activeWorkspace?.role === 'admin';
+
   // Collapsed sidebar preference persisted in localStorage
   const [collapsed, setCollapsed] = useState<boolean>(() => {
     return localStorage.getItem('cm_sidebar_collapsed') === 'true';
@@ -77,7 +85,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
       label: 'STUDIO COMMAND',
       items: [
         { id: 'overview', label: 'Overview', icon: LayoutDashboard },
-        { id: 'projects', label: 'Project HQ', icon: FolderKanban }
+        { id: 'projects', label: 'Project HQ', icon: FolderKanban },
+        ...(isSuperAdminOrOwner
+          ? [{ id: 'admin', label: 'Administration', icon: ShieldCheck }]
+          : [])
       ]
     },
     {
@@ -121,7 +132,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
     {
       label: 'STUDIO INTEL & SYSTEM',
       items: [
-        { id: 'ai-assistant', label: 'AI Assistant', icon: Sparkles },
         { id: 'wiki', label: 'Studio Wiki', icon: Library },
         { id: 'decisions', label: 'Decision Log', icon: GitPullRequest },
         { id: 'standups-meetings', label: 'Standups & Mtgs', icon: CalendarCheck },

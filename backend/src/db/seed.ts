@@ -49,9 +49,9 @@ export function seedDatabase(db = getDb()): void {
     ON CONFLICT(id) DO UPDATE SET display_name = 'Cindermarch AI Assistant'
   `).run(now, now);
 
-  // 4. Ensure Terminal 6 and Blue Note Lounge projects exist
+  // 4. Ensure Terminal 6 and Eclipsed projects exist
   db.prepare(`
-    INSERT INTO projects (id, workspace_id, name, description, repository_id, status, owner_id, unity_version, created_at)
+    INSERT INTO projects (id, workspace_id, name, description, repository_id, status, owner_id, unity_version, target_platforms_json, created_at)
     VALUES (
       'terminal-6',
       'ws_cindermarch',
@@ -61,32 +61,38 @@ export function seedDatabase(db = getDb()): void {
       'active',
       'usr_lead',
       '6000.0.25f1',
+      ?,
       ?
     )
     ON CONFLICT(id) DO UPDATE SET
       name = 'Terminal 6',
       status = 'active',
       unity_version = '6000.0.25f1'
-  `).run(now);
+  `).run(JSON.stringify(['PC/Steam']), now);
 
   db.prepare(`
-    INSERT INTO projects (id, workspace_id, name, description, repository_id, status, owner_id, unity_version, created_at)
+    INSERT INTO projects (id, workspace_id, name, description, repository_id, status, owner_id, unity_version, target_platforms_json, created_at)
     VALUES (
-      'blue-note-lounge',
+      'eclipsed',
       'ws_cindermarch',
-      'Blue Note Lounge',
-      'Noir mystery narrative game set in an evocative retro jazz lounge. Atmospheric lighting, branching character dialogue, and rich jazz score. Engine: Unity 6000.0.25f1',
-      'BlueNote-Main@cindermarch',
+      'Eclipsed',
+      'Atmospheric 2D metroidvania game developed by Cindermarch Studio. Fluid movement, tight combat, exploration, and upgrade progression. Engine: Unity 6000.0.25f1',
+      'Eclipsed-Main@cindermarch',
       'active',
       'usr_lead',
       '6000.0.25f1',
+      ?,
       ?
     )
     ON CONFLICT(id) DO UPDATE SET
-      name = 'Blue Note Lounge',
+      name = 'Eclipsed',
+      description = 'Atmospheric 2D metroidvania game developed by Cindermarch Studio. Fluid movement, tight combat, exploration, and upgrade progression. Engine: Unity 6000.0.25f1',
+      repository_id = 'Eclipsed-Main@cindermarch',
       status = 'active',
-      unity_version = '6000.0.25f1'
-  `).run(now);
+      unity_version = '6000.0.25f1',
+      target_platforms_json = ?
+  `).run(JSON.stringify(['PC/Steam', 'Nintendo Switch']), now, JSON.stringify(['PC/Steam', 'Nintendo Switch']));
+
 
   // 5. Ensure the 6 real Studio Teams exist
   const sixTeams = [
@@ -350,19 +356,7 @@ export function seedDatabase(db = getDb()): void {
     now,
     now
   );
-  insertMilestone.run(
-    'mls_bnl_proto',
-    'blue-note-lounge',
-    'M1: Jazz Club Ambience & Character Dialogue Tree (Prototype)',
-    'Interactive jazz bar environment, Vincent Vance dialogue tree, piano trigger mechanics.',
-    '2026-11-30T18:00:00Z',
-    'usr_yehia',
-    'In Progress',
-    'Branching dialogue graph verified, dynamic FMOD stem switching operational.',
-    null,
-    now,
-    now
-  );
+
 
   // 10. Seed Sprints
   const insertSprint = db.prepare(`
@@ -384,20 +378,7 @@ export function seedDatabase(db = getDb()): void {
     now,
     now
   );
-  insertSprint.run(
-    'sp_bnl_03',
-    'blue-note-lounge',
-    'team_coding',
-    'Sprint 03: Dialogue Graph Engine & Piano Key Triggers',
-    'Complete branching dialogue nodes and piano interaction feedback.',
-    '2026-10-12T00:00:00Z',
-    '2026-10-26T23:59:59Z',
-    60,
-    'Active',
-    null,
-    now,
-    now
-  );
+
 
   // 11. Seed Bugs & QA Lab
   const insertBug = db.prepare(`
@@ -446,25 +427,7 @@ export function seedDatabase(db = getDb()): void {
     now,
     now
   );
-  insertBug.run(
-    'BUG-BNL-001',
-    'blue-note-lounge',
-    'Dialogue state machine does not clear flags on exit conversation',
-    'Pressing ESC during Vincent Vance dialogue branch keeps player interaction state flagged as in-dialogue.',
-    'Major',
-    'P1',
-    'usr_lead',
-    'usr_yehia',
-    'team_coding',
-    'v0.2.1-proto',
-    'PC/Steam',
-    '1. Initiate conversation with Vincent Vance.\n2. Select topic 2.\n3. Press ESC before audio line completes.',
-    'Dialogue state resets to idle and movement controls unlock.',
-    'Movement remains locked until clicking the conversation window again.',
-    'Confirmed',
-    now,
-    now
-  );
+
 
   // 12. Seed Assets Vault
   const insertAsset = db.prepare(`
@@ -508,40 +471,7 @@ export function seedDatabase(db = getDb()): void {
     now,
     now
   );
-  insertAsset.run(
-    'ast_bnl_theme',
-    'blue-note-lounge',
-    'team_sound',
-    'Rain on the Neon Awning (Main Theme Motif)',
-    'music',
-    'Smoky, melancholic muted trumpet with slow walking upright bass and subtle vinyl flutter.',
-    'usr_yehia',
-    'v0.9',
-    'Ready for Review',
-    'Mixing',
-    JSON.stringify(['jazz', 'ost', 'theme', 'noir']),
-    null,
-    JSON.stringify({ sampleRate: 48000, channels: 2, durationSec: 124.0, bpm: 72, keySignature: 'D Minor' }),
-    now,
-    now
-  );
-  insertAsset.run(
-    'ast_bnl_vincent',
-    'blue-note-lounge',
-    'team_3d_artists',
-    'Vincent Vance Character Concept & Turnaround',
-    'concept_art',
-    'Full costume and facial turnaround for resident jazz pianist Vincent Vance, highlighting cigarette burn scar on knuckles.',
-    'usr_joe',
-    'v1.0',
-    'Approved',
-    'Modeling',
-    JSON.stringify(['character', 'vincent', 'concept', 'costume']),
-    'https://images.unsplash.com/photo-1534447677768-be436bb09401?auto=format&fit=crop&w=400&q=80',
-    JSON.stringify({ format: 'PSD/PNG', resolution: '4096x2048', artist: 'Joe' }),
-    now,
-    now
-  );
+
 
   // 13. Seed Story Bible Entries
   const insertStory = db.prepare(`
@@ -565,21 +495,7 @@ export function seedDatabase(db = getDb()): void {
     now,
     now
   );
-  insertStory.run(
-    'st_bnl_vincent',
-    'blue-note-lounge',
-    'character',
-    'Vincent Vance - The Weary Virtuoso',
-    'Resident jazz pianist at the Blue Note Lounge who knows too much about the disappearances in the district.',
-    'Vincent has played the Steinway at the Blue Note for fifteen years. His fingers know the keys better than his own memories. His right hand carries a faint burn scar from the warehouse district fire. He speaks in measured sentences and watches every newcomer through the brass mirror mounted above the upright piano.',
-    JSON.stringify(['character', 'npc', 'vincent', 'jazz']),
-    'Canon Approved',
-    'usr_yehia',
-    'usr_lead',
-    '1.0',
-    now,
-    now
-  );
+
 
   // 14. Seed Wiki Documents
   const insertDoc = db.prepare(`
@@ -602,20 +518,7 @@ export function seedDatabase(db = getDb()): void {
     now,
     now
   );
-  insertDoc.run(
-    'doc_bnl_audio',
-    'blue-note-lounge',
-    'team_sound',
-    'audio_guide',
-    'Blue Note Audio Bus & Spatial Acoustics Guide',
-    '# Blue Note Lounge Acoustic Design\n\n## Bus Routing\n- Master / Music / Piano_Stem / Reverb_Hall.\n- Master / Ambience / Rain_Glass / Crowd_Mutter.\n\n## Dynamic Mix Rules\n- Dialogue reduces piano high-pass frequencies by 6dB automatically.',
-    'usr_yehia',
-    JSON.stringify(['fmod', 'mixing', 'audio', 'standards']),
-    1,
-    1,
-    now,
-    now
-  );
+
 
   // 15. Seed Decisions (ADR)
   const insertDecision = db.prepare(`
@@ -640,21 +543,7 @@ export function seedDatabase(db = getDb()): void {
     now,
     now
   );
-  insertDecision.run(
-    'ADR-002',
-    'blue-note-lounge',
-    'ADR-002: Dynamic Music Layering via FMOD Studio Stems',
-    'Audio',
-    'The music must react dynamically to the player approaching tables or asking tense questions.',
-    '1. AudioSource crossfading in Unity audio engine.\n2. FMOD Studio parameter-driven multi-track events.',
-    'FMOD Studio parameter-driven event with 4 intensity layers.',
-    'Zero click artifacts on transition and sample-accurate bar sync.',
-    'usr_yehia',
-    'Accepted',
-    'usr_lead',
-    now,
-    now
-  );
+
 
   // 16. Seed Builds & Releases
   const insertBuild = db.prepare(`

@@ -72,7 +72,7 @@ bugRouter.post('/', authMiddleware, (req: AuthenticatedRequest, res: Response) =
       return;
     }
 
-    const prefix = project_id === 'blue-note-lounge' ? 'BUG-BNL' : 'BUG-T6';
+    const prefix = project_id === 'eclipsed' ? 'BUG-ECL' : project_id === 'blue-note-lounge' ? 'BUG-BNL' : 'BUG-T6';
     const randNum = Math.floor(100 + Math.random() * 900);
     const id = `${prefix}-${randNum}`;
 

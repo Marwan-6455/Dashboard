@@ -6,7 +6,9 @@ export class ProjectService {
     const db = getDb();
     const rows = db.prepare(`
       SELECT * FROM projects 
-      WHERE workspace_id = ? OR workspace_id IS NULL
+      WHERE (workspace_id = ? OR workspace_id IS NULL)
+        AND (status = 'active' OR status IS NULL)
+        AND status != 'archived'
       ORDER BY name ASC
     `).all(workspaceId) as unknown as Project[];
     return rows;

@@ -24,7 +24,8 @@ import { WikiDocsPage } from './pages/WikiDocsPage.js';
 import { MeetingsStandupsPage } from './pages/MeetingsStandupsPage.js';
 import { BuildsReleasesPage } from './pages/BuildsReleasesPage.js';
 import { MarketingPage } from './pages/MarketingPage.js';
-import { AiAssistantPage } from './pages/AiAssistantPage.js';
+import { AdministrationPage } from './pages/AdministrationPage.js';
+
 import { WorkspaceEntryModal } from './components/WorkspaceEntryModal.js';
 import { WorkspaceSuspendedScreen } from './components/WorkspaceSuspendedScreen.js';
 import { GlobalSearchModal } from './components/GlobalSearchModal.js';
@@ -231,6 +232,9 @@ export const App: React.FC = () => {
           onNavigate={handleNavigate}
         />
 
+        {/* Dedicated Top-Only Bounded Flight Corridor */}
+        <PhoenixCompanion />
+
         {currentPage === 'overview' && (
           <OverviewPage
             onNavigate={handleNavigate}
@@ -337,16 +341,16 @@ export const App: React.FC = () => {
           <MarketingPage />
         )}
 
-        {currentPage === 'ai-assistant' && (
-          <AiAssistantPage />
-        )}
-
         {currentPage === 'integrations' && <IntegrationsPage />}
 
         {currentPage === 'settings' && <SettingsPage onNavigate={handleNavigate} />}
 
         {currentPage === 'strikes' && (
           <StrikesPage onNavigateToTask={handleOpenTaskDetail} />
+        )}
+
+        {currentPage === 'admin' && (
+          <AdministrationPage onNavigate={handleNavigate} />
         )}
       </div>
 
@@ -367,9 +371,6 @@ export const App: React.FC = () => {
         isOpen={isProfileModalOpen}
         onClose={() => setIsProfileModalOpen(false)}
       />
-
-      {/* Signature Cindermarch Roaming Phoenix Companion */}
-      <PhoenixCompanion />
 
       {/* Workspace Entry Warning Modal */}
       {isWarningModalOpen && entryWarning && !isSuspended && (

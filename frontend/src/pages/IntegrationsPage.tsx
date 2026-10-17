@@ -240,7 +240,7 @@ export const IntegrationsPage: React.FC = () => {
     <div className="page-wrapper">
       <div className="page-header">
         <div className="page-title-group">
-          <h1>Terminal 6 // External Integrations & Operations Bot</h1>
+          <h1>Cindermarch Studio // External Integrations & Operations Bot</h1>
           <p>Cindermarch Operations Discord Bot, Unity Version Control (Plastic SCM), and UTF CI test ingestion.</p>
         </div>
       </div>

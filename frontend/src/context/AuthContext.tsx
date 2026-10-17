@@ -45,7 +45,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [unreadNotificationsCount, setUnreadNotificationsCount] = useState<number>(0);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [activeProjectId, setActiveProjectIdState] = useState<string>(() => {
-    return localStorage.getItem('cindermarch_active_project') || 'terminal-6';
+    const saved = localStorage.getItem('cindermarch_active_project');
+    if (saved === 'blue-note-lounge') {
+      localStorage.setItem('cindermarch_active_project', 'eclipsed');
+      return 'eclipsed';
+    }
+    return saved || 'terminal-6';
   });
 
   const setActiveProjectId = (projectId: string) => {

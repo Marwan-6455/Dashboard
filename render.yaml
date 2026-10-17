@@ -16,8 +16,6 @@ services:
         value: 3001
       - key: SESSION_SECRET
         generateValue: true
-      - key: GEMINI_API_KEY
-        sync: false
       - key: DISCORD_BOT_TOKEN
         sync: false
       - key: INTERNAL_BOT_API_KEY
