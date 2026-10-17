@@ -23,7 +23,8 @@ import {
   RefreshCw,
   FolderKanban,
   Bug,
-  Rocket
+  Rocket,
+  User
 } from 'lucide-react';
 import { StatusBadge } from '../components/StatusBadge.js';
 import { PriorityBadge } from '../components/PriorityBadge.js';
@@ -54,18 +55,20 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate, onOpenNe
   const [terminalHealth, setTerminalHealth] = useState<any>(null);
   const [eclipsedHealth, setEclipsedHealth] = useState<any>(null);
   const [activeBugs, setActiveBugs] = useState<any[]>([]);
+  const [myTasks, setMyTasks] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const loadData = async () => {
     try {
       setIsLoading(true);
-      const [statsRes, strikeRes, t6Res, eclRes, bugsRes] = await Promise.allSettled([
+      const [statsRes, strikeRes, t6Res, eclRes, bugsRes, myTasksRes] = await Promise.allSettled([
         apiRequest('/api/stats/overview'),
         apiRequest('/api/strikes/my-status'),
         apiRequest('/api/projects/terminal-6/health'),
         apiRequest('/api/projects/eclipsed/health'),
-        apiRequest('/api/bugs?status=Reported')
+        apiRequest('/api/bugs?status=Reported'),
+        apiRequest('/api/tasks?myTasksOnly=true')
       ]);
 
       if (statsRes.status === 'fulfilled') {
@@ -85,6 +88,9 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate, onOpenNe
       }
       if (bugsRes.status === 'fulfilled') {
         setActiveBugs(bugsRes.value.bugs || []);
+      }
+      if (myTasksRes.status === 'fulfilled') {
+        setMyTasks(myTasksRes.value.tasks || []);
       }
       setError(null);
     } catch (err: any) {
@@ -299,6 +305,132 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ onNavigate, onOpenNe
           </button>
         </div>
       )}
+
+      {/* Developer Priority Focus: My Active Tasks & Deliverables */}
+      {(() => {
+        const myActiveTasks = myTasks.filter((t: any) => t.status !== 'Verified Complete');
+
+        return (
+          <div
+            className="card"
+            style={{
+              marginBottom: '24px',
+              borderLeft: '4px solid var(--accent-orange)',
+              background: 'linear-gradient(180deg, rgba(255, 94, 30, 0.04) 0%, var(--bg-surface) 100%)'
+            }}
+          >
+            <div className="card-header">
+              <div className="card-title">
+                <CheckSquare size={17} color="var(--accent-orange)" />
+                <span>My Current Tasks & Next Priorities</span>
+              </div>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => onNavigate('tasks', { filterOwner: user?.id })}
+                style={{ fontSize: '12px' }}
+              >
+                All My Tasks ({myActiveTasks.length}) <ArrowRight size={13} />
+              </button>
+            </div>
+
+            {myActiveTasks.length === 0 ? (
+              <div style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px' }}>
+                <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+                  You have zero active tasks assigned. You are all caught up and ready to pick up new work.
+                </div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => onNavigate('tasks')}
+                  >
+                    Browse Studio Tasks
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm"
+                    onClick={onOpenNewTaskModal}
+                  >
+                    <Plus size={14} /> Create Task
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {myActiveTasks.slice(0, 4).map((t: any) => {
+                  const effectiveDate = t.extended_deadline || t.deadline;
+                  const rel = effectiveDate ? getRelativeDeadline(effectiveDate) : null;
+
+                  return (
+                    <div
+                      key={t.id}
+                      style={{
+                        padding: '12px 16px',
+                        backgroundColor: 'var(--bg-elevated)',
+                        border: '1px solid var(--border-subtle)',
+                        borderRadius: 'var(--radius-sm)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '14px',
+                        flexWrap: 'wrap'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: '1 1 300px' }}>
+                        <span className="mono" style={{ fontSize: '13px', fontWeight: 700, color: 'var(--accent-orange)' }}>
+                          {t.id}
+                        </span>
+                        <PriorityBadge priority={t.priority} />
+                        <StatusBadge status={t.status} />
+                        <span style={{ fontSize: '13.5px', fontWeight: 600, color: 'var(--text-white)' }}>
+                          {t.title}
+                        </span>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        {rel && (
+                          <span
+                            className="mono"
+                            style={{
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              padding: '3px 8px',
+                              borderRadius: '10px',
+                              backgroundColor:
+                                rel.severity === 'critical'
+                                  ? 'rgba(239, 68, 68, 0.2)'
+                                  : rel.severity === 'warning'
+                                  ? 'rgba(245, 158, 11, 0.2)'
+                                  : 'rgba(255, 255, 255, 0.05)',
+                              color:
+                                rel.severity === 'critical'
+                                  ? '#EF4444'
+                                  : rel.severity === 'warning'
+                                  ? '#F59E0B'
+                                  : 'var(--text-secondary)'
+                            }}
+                          >
+                            {rel.label}
+                          </span>
+                        )}
+
+                        <button
+                          type="button"
+                          className="btn btn-primary btn-sm"
+                          onClick={() => onNavigate('tasks', { taskId: t.id })}
+                        >
+                          Open Task <ArrowRight size={13} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Integration Status Bar */}
       <div

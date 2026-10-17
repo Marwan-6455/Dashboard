@@ -25,7 +25,8 @@ import {
   GitPullRequest,
   CalendarCheck,
   Megaphone,
-  ShieldCheck
+  ShieldCheck,
+  ChevronDown
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.js';
 
@@ -46,7 +47,9 @@ interface NavItem {
 }
 
 interface NavSection {
+  id: string;
   label: string;
+  isCollapsible?: boolean;
   items: NavItem[];
 }
 
@@ -72,6 +75,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
     return localStorage.getItem('cm_sidebar_collapsed') === 'true';
   });
 
+  // Track expanded state for secondary tool sections
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>(() => {
+    try {
+      const saved = localStorage.getItem('cm_sidebar_expanded_sections');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return {
+      engineering: false,
+      creative: false,
+      system: false
+    };
+  });
+
+  const toggleSection = (sectionId: string) => {
+    setExpandedSections((prev) => {
+      const next = { ...prev, [sectionId]: !prev[sectionId] };
+      localStorage.setItem('cm_sidebar_expanded_sections', JSON.stringify(next));
+      return next;
+    });
+  };
+
   const toggleCollapsed = () => {
     setCollapsed((prev) => {
       const next = !prev;
@@ -80,20 +104,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
     });
   };
 
+  // Auto-expand group if currentPage is inside it
+  useEffect(() => {
+    if (['bugs', 'builds-releases', 'test-reports', 'evidence', 'strikes'].includes(currentPage)) {
+      setExpandedSections((prev) => ({ ...prev, engineering: true }));
+    } else if (['assets', 'story-bible', 'marketing', 'wiki', 'decisions'].includes(currentPage)) {
+      setExpandedSections((prev) => ({ ...prev, creative: true }));
+    } else if (['integrations', 'activity', 'settings'].includes(currentPage)) {
+      setExpandedSections((prev) => ({ ...prev, system: true }));
+    }
+  }, [currentPage]);
+
   const navSections: NavSection[] = [
     {
-      label: 'STUDIO COMMAND',
+      id: 'workspace',
+      label: 'WORKSPACE ESSENTIALS',
+      isCollapsible: false,
       items: [
         { id: 'overview', label: 'Overview', icon: LayoutDashboard },
-        { id: 'projects', label: 'Project HQ', icon: FolderKanban },
-        ...(isSuperAdminOrOwner
-          ? [{ id: 'admin', label: 'Administration', icon: ShieldCheck }]
-          : [])
-      ]
-    },
-    {
-      label: 'WORKFLOW & TASKS',
-      items: [
         {
           id: 'my-tasks',
           label: 'My Tasks',
@@ -101,48 +129,52 @@ export const Sidebar: React.FC<SidebarProps> = ({
           customAction: () => onNavigate('tasks', { filterOwner: user?.id })
         },
         { id: 'tasks', label: 'All Tasks', icon: CheckSquare },
-        {
-          id: 'deadlines',
-          label: 'Deadlines',
-          icon: Clock,
-          customAction: () => onNavigate('tasks', { filterStatus: '', sort: 'deadline' })
-        },
-        { id: 'team', label: 'Teams', icon: Users }
+        { id: 'projects', label: 'Project HQ', icon: FolderKanban },
+        { id: 'team', label: 'Studio Teams', icon: Users },
+        { id: 'reviews', label: 'Peer Reviews', icon: FileCheck2 },
+        { id: 'standups-meetings', label: 'Standups & Mtgs', icon: CalendarCheck },
+        ...(isSuperAdminOrOwner
+          ? [{ id: 'admin', label: 'Administration', icon: ShieldCheck }]
+          : [])
       ]
     },
     {
-      label: 'QUALITY & ENGINEERING',
+      id: 'engineering',
+      label: 'ENGINEERING & QUALITY',
+      isCollapsible: true,
       items: [
         { id: 'bugs', label: 'QA Bug Tracker', icon: AlertCircle },
-        { id: 'reviews', label: 'Peer Reviews', icon: FileCheck2 },
         { id: 'builds-releases', label: 'Builds & Releases', icon: Layers },
         { id: 'test-reports', label: 'Test Reports', icon: FileText },
-        { id: 'evidence', label: 'Evidence', icon: FileImage },
-        { id: 'strikes', label: 'Strike History', icon: ShieldAlert }
+        { id: 'evidence', label: 'Evidence Vault', icon: FileImage },
+        { id: 'strikes', label: 'Strike Policy & Status', icon: ShieldAlert }
       ]
     },
     {
-      label: 'CREATIVE & ASSETS',
+      id: 'creative',
+      label: 'CREATIVE & STUDIO DOCS',
+      isCollapsible: true,
       items: [
         { id: 'assets', label: 'Asset Vault', icon: Box },
         { id: 'story-bible', label: 'Story Bible', icon: BookOpen },
-        { id: 'marketing', label: 'Marketing Calendar', icon: Megaphone }
+        { id: 'marketing', label: 'Marketing Calendar', icon: Megaphone },
+        { id: 'wiki', label: 'Studio Wiki', icon: Library },
+        { id: 'decisions', label: 'Decision Log', icon: GitPullRequest }
       ]
     },
     {
-      label: 'STUDIO INTEL & SYSTEM',
+      id: 'system',
+      label: 'SYSTEM & SETTINGS',
+      isCollapsible: true,
       items: [
-        { id: 'wiki', label: 'Studio Wiki', icon: Library },
-        { id: 'decisions', label: 'Decision Log', icon: GitPullRequest },
-        { id: 'standups-meetings', label: 'Standups & Mtgs', icon: CalendarCheck },
         { id: 'integrations', label: 'Integrations', icon: Bot },
         { id: 'activity', label: 'Audit Trail', icon: History, badge: unreadNotificationsCount },
-        { id: 'settings', label: 'Settings', icon: Settings }
+        { id: 'settings', label: 'Hub Settings', icon: Settings }
       ]
     }
   ];
 
-  const handleNavClick = (item: any) => {
+  const handleNavClick = (item: NavItem) => {
     if (item.customAction) {
       item.customAction();
     } else {
@@ -204,37 +236,67 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Categorized Navigation */}
       <nav className="sidebar-nav">
-        {navSections.map((section, sIdx) => (
-          <React.Fragment key={section.label}>
-            <div className="nav-section-label" style={{ marginTop: sIdx > 0 ? '10px' : '0' }}>
-              {section.label}
-            </div>
+        {navSections.map((section, sIdx) => {
+          const isExpanded = !section.isCollapsible || expandedSections[section.id];
+          const hasActiveChild = section.items.some((item) => currentPage === item.id);
 
-            {section.items.map((item) => {
-              const Icon = item.icon;
-              const isActive = currentPage === item.id;
-
-              return (
+          return (
+            <React.Fragment key={section.id}>
+              {section.isCollapsible && !collapsed ? (
                 <button
-                  key={item.id}
                   type="button"
-                  className={`nav-link ${isActive ? 'active' : ''}`}
-                  onClick={() => handleNavClick(item)}
-                  title={collapsed ? item.label : undefined}
+                  className="nav-section-label"
+                  onClick={() => toggleSection(section.id)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    width: '100%',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    marginTop: sIdx > 0 ? '10px' : '0',
+                    padding: '8px 10px',
+                    color: hasActiveChild ? 'var(--accent-orange)' : 'var(--text-muted)'
+                  }}
+                  title={`Toggle ${section.label}`}
                 >
-                  <Icon size={18} />
-                  <span>{item.label}</span>
-
-                  {typeof item.badge === 'number' && item.badge > 0 ? (
-                    <span className="nav-count-badge badge-alert">
-                      {item.badge}
-                    </span>
-                  ) : null}
+                  <span>{section.label}</span>
+                  {isExpanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
                 </button>
-              );
-            })}
-          </React.Fragment>
-        ))}
+              ) : (
+                <div className="nav-section-label" style={{ marginTop: sIdx > 0 ? '10px' : '0' }}>
+                  {section.label}
+                </div>
+              )}
+
+              {(collapsed || isExpanded) &&
+                section.items.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = currentPage === item.id;
+
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      className={`nav-link ${isActive ? 'active' : ''}`}
+                      onClick={() => handleNavClick(item)}
+                      title={collapsed ? item.label : undefined}
+                    >
+                      <Icon size={18} />
+                      <span>{item.label}</span>
+
+                      {typeof item.badge === 'number' && item.badge > 0 ? (
+                        <span className="nav-count-badge badge-alert">
+                          {item.badge}
+                        </span>
+                      ) : null}
+                    </button>
+                  );
+                })}
+            </React.Fragment>
+          );
+        })}
       </nav>
 
       {/* Footer User Profile & Logout */}

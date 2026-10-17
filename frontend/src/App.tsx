@@ -391,8 +391,11 @@ export const App: React.FC = () => {
           setIsTaskModalOpen(false);
           setTaskToEdit(null);
         }}
-        onTaskSaved={() => {
+        onTaskSaved={(savedTaskId?: string) => {
           fetchGlobalData();
+          if (savedTaskId) {
+            handleOpenTaskDetail(savedTaskId);
+          }
         }}
         taskToEdit={taskToEdit}
         teamUsers={teamUsers}

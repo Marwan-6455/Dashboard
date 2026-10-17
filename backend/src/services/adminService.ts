@@ -525,6 +525,66 @@ export class AdminService {
   }
 
   /**
+   * Create workspace invitation
+   */
+  static createInvitation(params: {
+    workspaceId: string;
+    email: string;
+    role?: string;
+    teamId?: string | null;
+    actorId?: string;
+    actorName?: string;
+  }): {
+    id: string;
+    workspaceId: string;
+    email: string;
+    role: string;
+    teamId: string | null;
+    invitationToken: string;
+    expiresAt: string;
+    inviteUrl: string;
+  } {
+    const db = getDb();
+    const role = params.role || 'developer';
+    const email = params.email.trim().toLowerCase();
+    const actorId = params.actorId || 'usr_system';
+    const actorName = params.actorName || 'Administrator';
+
+    const invitationToken = `inv_${Date.now()}_${uuidv4().replace(/-/g, '').slice(0, 16)}`;
+    const id = `inv_${uuidv4().slice(0, 8)}`;
+    const now = new Date().toISOString();
+    const expiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
+
+    db.prepare(`
+      INSERT INTO workspace_invitations (id, workspace_id, email, invitation_token, role, team_id, status, invited_by, created_at, expires_at)
+      VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)
+    `).run(id, params.workspaceId, email, invitationToken, role, params.teamId || null, actorId, now, expiresAt);
+
+    this.logAudit({
+      workspaceId: params.workspaceId,
+      actorId,
+      actorName,
+      action: 'invitation_created',
+      targetType: 'invitation',
+      targetId: id,
+      targetName: email,
+      details: { email, role, teamId: params.teamId }
+    });
+
+    return {
+      id,
+      workspaceId: params.workspaceId,
+      email,
+      role,
+      teamId: params.teamId || null,
+      invitationToken,
+      expiresAt,
+      inviteUrl: `/signup?invite=${invitationToken}`
+    };
+  }
+
+
+  /**
    * Change member permitted role (Team Manager / Developer / Team Member / Reviewer)
    */
   static changeMemberRole(params: {

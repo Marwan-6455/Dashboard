@@ -11,7 +11,6 @@ import {
   MessageSquare,
   Clock,
   ShieldCheck,
-  ShieldAlert,
   Send,
   Download,
   Trash2,
@@ -19,7 +18,11 @@ import {
   ExternalLink,
   Calendar,
   AlertTriangle,
-  X
+  X,
+  Play,
+  ArrowRight,
+  ShieldAlert,
+  HelpCircle
 } from 'lucide-react';
 import { Task, TaskStatus, Priority } from '../types/index.js';
 import { StatusBadge } from '../components/StatusBadge.js';
@@ -49,14 +52,16 @@ export const TaskDetailPage: React.FC<TaskDetailPageProps> = ({
   const { user, hasRole } = useAuth();
   const toast = useToast();
   const isAdminOrOwner = hasRole('admin') || hasRole('owner');
+
   const [task, setTask] = useState<Task | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'details' | 'criteria' | 'changesets' | 'reviews' | 'evidence' | 'tests' | 'comments'>('details');
 
-  // New criterion input
+  // Consolidated 3 streamlined tabs: 'work', 'reviews', 'discussion'
+  const [activeTab, setActiveTab] = useState<'work' | 'reviews' | 'discussion'>('work');
+
+  // Input states
   const [newCriterionTitle, setNewCriterionTitle] = useState('');
-  // New comment input
   const [newComment, setNewComment] = useState('');
 
   // Modals
@@ -156,7 +161,7 @@ export const TaskDetailPage: React.FC<TaskDetailPageProps> = ({
       fetchTask();
     } catch (err: any) {
       toast.error(`Cannot move to ${newStatus}: ${err.message}`);
-      fetchTask(); // reset UI
+      fetchTask();
     }
   };
 
@@ -208,7 +213,6 @@ export const TaskDetailPage: React.FC<TaskDetailPageProps> = ({
   };
 
   const handleUnlinkChangeset = async (csId: string) => {
-    if (!confirm('Unlink this changeset reference from the task?')) return;
     try {
       await apiRequest(`/api/tasks/${taskId}/changesets/${csId}`, {
         method: 'DELETE'
@@ -241,6 +245,275 @@ export const TaskDetailPage: React.FC<TaskDetailPageProps> = ({
     );
   }
 
+  // Next Action Guidance computation
+  const isOwner = !!(user && task.owner_id === user.id);
+  const isReviewer = !!(user && task.reviewer_id === user.id);
+  const hasPendingReview = task.reviews?.some((r) => r.decision === 'Pending');
+
+  const renderNextActionBanner = () => {
+    switch (task.status) {
+      case 'Backlog':
+        return (
+          <div
+            style={{
+              padding: '14px 18px',
+              backgroundColor: 'rgba(56, 189, 248, 0.08)',
+              border: '1px solid rgba(56, 189, 248, 0.3)',
+              borderRadius: 'var(--radius-md)',
+              marginBottom: '20px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '14px',
+              flexWrap: 'wrap'
+            }}
+          >
+            <div>
+              <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--status-progress)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                NEXT ACTION: READY TO BEGIN
+              </div>
+              <div style={{ fontSize: '13px', color: 'var(--text-white)', marginTop: '2px' }}>
+                This task is currently in Backlog. When you are ready to start engineering, move it to In Progress.
+              </div>
+            </div>
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              onClick={() => handleStatusChange('In Progress')}
+            >
+              <Play size={14} />
+              <span>Start Work (In Progress)</span>
+            </button>
+          </div>
+        );
+
+      case 'In Progress':
+        return (
+          <div
+            style={{
+              padding: '14px 18px',
+              backgroundColor: 'rgba(245, 158, 11, 0.08)',
+              border: '1px solid rgba(245, 158, 11, 0.3)',
+              borderRadius: 'var(--radius-md)',
+              marginBottom: '20px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '14px',
+              flexWrap: 'wrap'
+            }}
+          >
+            <div>
+              <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--status-review)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                NEXT ACTION: DEVELOPMENT IN PROGRESS
+              </div>
+              <div style={{ fontSize: '13px', color: 'var(--text-white)', marginTop: '2px' }}>
+                Complete checklist criteria, link changesets/evidence, and submit for peer review when ready.
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => setIsEvidenceModalOpen(true)}
+              >
+                <FileImage size={14} />
+                <span>Attach Evidence</span>
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                onClick={() => {
+                  setReviewModalMode('request');
+                  setIsReviewModalOpen(true);
+                }}
+              >
+                <FileCheck2 size={14} />
+                <span>Submit for Review</span>
+              </button>
+            </div>
+          </div>
+        );
+
+      case 'Ready for Review':
+        return (
+          <div
+            style={{
+              padding: '14px 18px',
+              backgroundColor: 'rgba(251, 146, 60, 0.08)',
+              border: '1px solid rgba(251, 146, 60, 0.3)',
+              borderRadius: 'var(--radius-md)',
+              marginBottom: '20px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '14px',
+              flexWrap: 'wrap'
+            }}
+          >
+            <div>
+              <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--status-changes)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                NEXT ACTION: PEER REVIEW EVALUATION
+              </div>
+              <div style={{ fontSize: '13px', color: 'var(--text-white)', marginTop: '2px' }}>
+                {isReviewer
+                  ? 'You are the designated reviewer for this task. Inspect evidence and code changes, then approve or request changes.'
+                  : isOwner
+                  ? `Task submitted for review. Awaiting evaluation from ${task.reviewer_name || 'designated reviewer'}.`
+                  : `Awaiting peer review evaluation from ${task.reviewer_name || 'reviewer'}.`}
+              </div>
+            </div>
+            <div>
+              {(isReviewer || isAdminOrOwner) && !isOwner && (
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  onClick={() => {
+                    setReviewModalMode('decision');
+                    setIsReviewModalOpen(true);
+                  }}
+                >
+                  <FileCheck2 size={14} />
+                  <span>Conduct Review (Approve / Changes)</span>
+                </button>
+              )}
+            </div>
+          </div>
+        );
+
+      case 'Changes Requested':
+        return (
+          <div
+            style={{
+              padding: '14px 18px',
+              backgroundColor: 'rgba(239, 68, 68, 0.08)',
+              border: '1px solid rgba(239, 68, 68, 0.3)',
+              borderRadius: 'var(--radius-md)',
+              marginBottom: '20px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '14px',
+              flexWrap: 'wrap'
+            }}
+          >
+            <div>
+              <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--status-blocked)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                NEXT ACTION: ITERATION REQUIRED
+              </div>
+              <div style={{ fontSize: '13px', color: 'var(--text-white)', marginTop: '2px' }}>
+                Reviewer requested changes. See feedback under Quality & Reviews tab, address findings, and re-submit.
+              </div>
+            </div>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={() => {
+                setReviewModalMode('request');
+                setIsReviewModalOpen(true);
+              }}
+            >
+              <FileCheck2 size={14} />
+              <span>Re-submit for Review</span>
+            </button>
+          </div>
+        );
+
+      case 'Ready to Integrate':
+        return (
+          <div
+            style={{
+              padding: '14px 18px',
+              backgroundColor: 'rgba(167, 139, 250, 0.08)',
+              border: '1px solid rgba(167, 139, 250, 0.3)',
+              borderRadius: 'var(--radius-md)',
+              marginBottom: '20px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '14px',
+              flexWrap: 'wrap'
+            }}
+          >
+            <div>
+              <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--status-integrate)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                NEXT ACTION: READY TO INTEGRATE
+              </div>
+              <div style={{ fontSize: '13px', color: 'var(--text-white)', marginTop: '2px' }}>
+                Peer review passed! Merge changesets to main branch and mark verified complete once verified in engine build.
+              </div>
+            </div>
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              onClick={() => handleStatusChange('Verified Complete')}
+            >
+              <CheckCircle2 size={14} />
+              <span>Mark Verified Complete</span>
+            </button>
+          </div>
+        );
+
+      case 'Verified Complete':
+        return (
+          <div
+            style={{
+              padding: '12px 18px',
+              backgroundColor: 'rgba(16, 185, 129, 0.08)',
+              border: '1px solid rgba(16, 185, 129, 0.3)',
+              borderRadius: 'var(--radius-md)',
+              marginBottom: '20px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px'
+            }}
+          >
+            <CheckCircle2 size={18} color="var(--status-complete)" />
+            <div style={{ fontSize: '13px', color: 'var(--status-complete)', fontWeight: 600 }}>
+              VERIFIED COMPLETE: All six completion gates satisfied and audited.
+            </div>
+          </div>
+        );
+
+      case 'Blocked':
+        return (
+          <div
+            style={{
+              padding: '14px 18px',
+              backgroundColor: 'rgba(239, 68, 68, 0.08)',
+              border: '1px solid rgba(239, 68, 68, 0.3)',
+              borderRadius: 'var(--radius-md)',
+              marginBottom: '20px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '14px',
+              flexWrap: 'wrap'
+            }}
+          >
+            <div>
+              <div style={{ fontSize: '11px', fontWeight: 700, color: '#EF4444', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                NEXT ACTION: RESOLVE BLOCKER
+              </div>
+              <div style={{ fontSize: '13px', color: 'var(--text-white)', marginTop: '2px' }}>
+                Task is marked as Blocked. Post notes on the dependency in discussion or coordinate with team lead.
+              </div>
+            </div>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={() => handleStatusChange('In Progress')}
+            >
+              <span>Unblock (Move In Progress)</span>
+            </button>
+          </div>
+        );
+
+      default:
+        return null;
+    }
+  };
+
   return (
     <div className="page-wrapper">
       {/* Top Breadcrumb & Action Header */}
@@ -253,6 +526,7 @@ export const TaskDetailPage: React.FC<TaskDetailPageProps> = ({
           {isAdminOrOwner && (
             <>
               <button
+                type="button"
                 className="btn btn-secondary btn-sm"
                 onClick={() => {
                   setNewExtendedDeadline(task.extended_deadline || task.deadline || '');
@@ -262,6 +536,7 @@ export const TaskDetailPage: React.FC<TaskDetailPageProps> = ({
                 <Calendar size={14} /> Extend Deadline
               </button>
               <button
+                type="button"
                 className="btn btn-secondary btn-sm"
                 onClick={() => {
                   setExemptionReason(task.deadline_exemption_reason || '');
@@ -288,13 +563,13 @@ export const TaskDetailPage: React.FC<TaskDetailPageProps> = ({
             <option value="Blocked">Blocked</option>
           </select>
 
-          <button className="btn btn-secondary btn-sm" onClick={() => onEditTask(task)}>
+          <button type="button" className="btn btn-secondary btn-sm" onClick={() => onEditTask(task)}>
             <Edit size={14} /> Edit Task
           </button>
         </div>
       </div>
 
-      {/* Reassignment Required Warning Banner */}
+      {/* Reassignment Warning Banner */}
       {task.reassignment_required === 1 && (
         <div
           style={{
@@ -312,14 +587,14 @@ export const TaskDetailPage: React.FC<TaskDetailPageProps> = ({
           <div style={{ fontSize: '13px' }}>
             <strong style={{ color: '#EF4444' }}>REASSIGNMENT REQUIRED:</strong>{' '}
             <span>
-              This task was previously assigned to a developer whose workspace access is suspended under the deadline policy ({task.reassignment_reason || 'Disciplinary suspension'}). Please reassign this task to an active team member.
+              This task was assigned to a member whose access is suspended. Please reassign to an active developer.
             </span>
           </div>
         </div>
       )}
 
       {/* Task Heading */}
-      <div style={{ marginBottom: '24px' }}>
+      <div style={{ marginBottom: '20px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px', flexWrap: 'wrap' }}>
           <span className="mono" style={{ fontSize: '18px', fontWeight: 700, color: 'var(--accent-orange)' }}>
             {task.id}
@@ -327,9 +602,7 @@ export const TaskDetailPage: React.FC<TaskDetailPageProps> = ({
           <PriorityBadge priority={task.priority} />
           <StatusBadge status={task.status} />
           {task.is_deadline_exempt === 1 && (
-            <span className="badge badge-verified-complete">
-              EXEMPT FROM STRIKE POLICY
-            </span>
+            <span className="badge badge-verified-complete">EXEMPT FROM STRIKE POLICY</span>
           )}
           {task.extended_deadline && (
             <span className="badge badge-changes-requested">
@@ -338,7 +611,7 @@ export const TaskDetailPage: React.FC<TaskDetailPageProps> = ({
           )}
           {task.completed_at && (
             <span className="badge badge-verified-complete">
-              COMPLETED ON {new Date(task.completed_at).toLocaleDateString()}
+              COMPLETED {new Date(task.completed_at).toLocaleDateString()}
             </span>
           )}
         </div>
@@ -347,559 +620,485 @@ export const TaskDetailPage: React.FC<TaskDetailPageProps> = ({
         </h1>
       </div>
 
-      {/* Completion Gate Status Banner */}
-      <GateStatusWidget gateStatus={task.completion_gate_status} />
+      {/* Dynamic Next Action Guidance Card */}
+      {renderNextActionBanner()}
 
-      {/* Tab Navigation */}
-      <div className="tab-bar">
+      {/* Simplified 3-Tab Bar */}
+      <div className="tab-bar" style={{ marginBottom: '20px' }}>
         <button
-          className={`tab-btn ${activeTab === 'details' ? 'active' : ''}`}
-          onClick={() => setActiveTab('details')}
+          type="button"
+          className={`tab-btn ${activeTab === 'work' ? 'active' : ''}`}
+          onClick={() => setActiveTab('work')}
         >
-          Overview & Context
+          Overview & Work
         </button>
         <button
-          className={`tab-btn ${activeTab === 'criteria' ? 'active' : ''}`}
-          onClick={() => setActiveTab('criteria')}
-        >
-          Acceptance Criteria ({task.acceptance_criteria?.length || 0})
-        </button>
-        <button
-          className={`tab-btn ${activeTab === 'changesets' ? 'active' : ''}`}
-          onClick={() => setActiveTab('changesets')}
-        >
-          UVCS Changesets ({task.changesets?.length || 0})
-        </button>
-        <button
+          type="button"
           className={`tab-btn ${activeTab === 'reviews' ? 'active' : ''}`}
           onClick={() => setActiveTab('reviews')}
         >
-          Peer Reviews ({task.reviews?.length || 0})
+          Quality & Reviews ({task.reviews?.length || 0})
         </button>
         <button
-          className={`tab-btn ${activeTab === 'evidence' ? 'active' : ''}`}
-          onClick={() => setActiveTab('evidence')}
+          type="button"
+          className={`tab-btn ${activeTab === 'discussion' ? 'active' : ''}`}
+          onClick={() => setActiveTab('discussion')}
         >
-          Evidence ({task.evidence?.length || 0})
-        </button>
-        <button
-          className={`tab-btn ${activeTab === 'tests' ? 'active' : ''}`}
-          onClick={() => setActiveTab('tests')}
-        >
-          Test Reports ({task.test_reports?.length || 0})
-        </button>
-        <button
-          className={`tab-btn ${activeTab === 'comments' ? 'active' : ''}`}
-          onClick={() => setActiveTab('comments')}
-        >
-          Comments ({task.comments?.length || 0})
+          Discussion & History ({task.comments?.length || 0})
         </button>
       </div>
 
-      {/* Tab: Details */}
-      {activeTab === 'details' && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px' }}>
-          <div className="card">
-            <div className="card-header">
-              <div className="card-title">Technical Description & Scope</div>
+      {/* TAB 1: OVERVIEW & WORK */}
+      {activeTab === 'work' && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '24px' }}>
+          {/* Left Column: Scope & Criteria */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+            {/* Technical Scope Card */}
+            <div className="card">
+              <div className="card-header">
+                <div className="card-title">Technical Description & Scope</div>
+              </div>
+              <div style={{ fontSize: '14px', lineHeight: '1.7', whiteSpace: 'pre-wrap', color: 'var(--text-white)' }}>
+                {task.description}
+              </div>
             </div>
-            <div style={{ fontSize: '14px', lineHeight: '1.7', whiteSpace: 'pre-wrap', color: 'var(--text-white)' }}>
-              {task.description}
-            </div>
-          </div>
 
-          <div className="card">
-            <div className="card-header">
-              <div className="card-title">Task Metadata & Roles</div>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', fontSize: '13px' }}>
-              <div>
-                <span style={{ color: 'var(--text-secondary)' }}>Owner (Developer):</span>{' '}
-                <strong>{task.owner_name || 'Unassigned'}</strong>
-              </div>
-              <div>
-                <span style={{ color: 'var(--text-secondary)' }}>Designated Reviewer:</span>{' '}
-                <strong>{task.reviewer_name || 'None'}</strong>
-              </div>
-              <div>
-                <span style={{ color: 'var(--text-secondary)' }}>Created By:</span>{' '}
-                <strong>{task.creator_name || 'System'}</strong>
-              </div>
-              <div>
-                <span style={{ color: 'var(--text-secondary)' }}>Target Milestone Deadline:</span>{' '}
-                <strong className="mono">
-                  {task.deadline ? new Date(task.deadline).toLocaleDateString() : 'None scheduled'}
-                </strong>
-              </div>
-              {task.extended_deadline && (
-                <div>
-                  <span style={{ color: 'var(--text-secondary)' }}>Approved Extension:</span>{' '}
-                  <strong className="mono" style={{ color: 'var(--status-review)' }}>
-                    {new Date(task.extended_deadline).toLocaleDateString()}
-                  </strong>
-                  {task.deadline_extension_reason && (
-                    <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                      Justification: {task.deadline_extension_reason}
-                    </div>
-                  )}
+            {/* Acceptance Criteria Checklist (Gate 1) */}
+            <div className="card">
+              <div className="card-header">
+                <div className="card-title">
+                  <CheckCircle2 size={16} color="var(--accent-orange)" />
+                  <span>Acceptance Criteria Checklist</span>
                 </div>
-              )}
-              <div>
-                <span style={{ color: 'var(--text-secondary)' }}>Deadline Policy Status:</span>{' '}
-                {task.is_deadline_exempt === 1 ? (
-                  <span style={{ color: 'var(--status-complete)', fontWeight: 600 }}>
-                    Exempt ({task.deadline_exemption_reason || 'Approved exemption'})
-                  </span>
+                <span className="badge badge-backlog" style={{ fontSize: '11px' }}>
+                  {task.acceptance_criteria?.filter((c) => c.is_satisfied === 1).length || 0} / {task.acceptance_criteria?.length || 0} Satisfied
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
+                {task.acceptance_criteria?.length === 0 ? (
+                  <div className="empty-state" style={{ padding: '16px 0' }}>
+                    <p style={{ margin: 0 }}>No criteria added yet. Add checklist items below to define verification requirements.</p>
+                  </div>
                 ) : (
-                  <span style={{ color: 'var(--text-white)' }}>
-                    Subject to 5-strike policy (24h grace period)
-                  </span>
+                  task.acceptance_criteria?.map((c) => (
+                    <div
+                      key={c.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '10px 14px',
+                        backgroundColor: 'var(--bg-elevated)',
+                        border: '1px solid var(--border-subtle)',
+                        borderRadius: 'var(--radius-sm)',
+                        cursor: 'pointer'
+                      }}
+                      onClick={() => handleToggleCriterion(c.id, c.is_satisfied)}
+                      title="Click to toggle status"
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        {c.is_satisfied === 1 ? (
+                          <CheckCircle2 size={18} color="var(--status-complete)" />
+                        ) : (
+                          <Circle size={18} color="var(--text-muted)" />
+                        )}
+                        <span
+                          style={{
+                            fontSize: '13.5px',
+                            color: c.is_satisfied === 1 ? 'var(--text-white)' : 'var(--text-secondary)',
+                            textDecoration: c.is_satisfied === 1 ? 'line-through' : 'none'
+                          }}
+                        >
+                          {c.title}
+                        </span>
+                      </div>
+
+                      {c.is_satisfied === 1 && (
+                        <span className="mono" style={{ fontSize: '11px', color: 'var(--status-complete)' }}>
+                          Verified
+                        </span>
+                      )}
+                    </div>
+                  ))
                 )}
               </div>
-              <div>
-                <span style={{ color: 'var(--text-secondary)' }}>Last Updated:</span>{' '}
-                <span className="mono">{new Date(task.updated_at).toLocaleString()}</span>
-              </div>
+
+              <form onSubmit={handleAddCriterion} style={{ display: 'flex', gap: '8px' }}>
+                <input
+                  type="text"
+                  className="form-control"
+                  placeholder="Add verifiable acceptance item..."
+                  value={newCriterionTitle}
+                  onChange={(e) => setNewCriterionTitle(e.target.value)}
+                />
+                <button type="submit" className="btn btn-secondary btn-sm" disabled={!newCriterionTitle.trim()}>
+                  <Plus size={14} /> Add Item
+                </button>
+              </form>
             </div>
           </div>
-        </div>
-      )}
 
-      {/* Tab: Acceptance Criteria */}
-      {activeTab === 'criteria' && (
-        <div className="card">
-          <div className="card-header">
-            <div className="card-title">Task Acceptance Criteria (Gate 1)</div>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '24px' }}>
-            {task.acceptance_criteria?.length === 0 ? (
-              <div className="empty-state" style={{ padding: '24px 0' }}>
-                <p>No acceptance criteria defined yet. Add at least one criterion to satisfy the completion gate.</p>
+          {/* Right Column: Artifacts (Changesets, Tests, Evidence) + Metadata */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+            {/* Task Metadata Card */}
+            <div className="card">
+              <div className="card-header">
+                <div className="card-title">Assignment & Schedule</div>
               </div>
-            ) : (
-              task.acceptance_criteria?.map((c) => (
-                <div
-                  key={c.id}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '12px 14px',
-                    backgroundColor: 'var(--bg-elevated)',
-                    border: '1px solid var(--border-subtle)',
-                    borderRadius: 'var(--radius-sm)',
-                    cursor: 'pointer'
-                  }}
-                  onClick={() => handleToggleCriterion(c.id, c.is_satisfied)}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    {c.is_satisfied === 1 ? (
-                      <CheckCircle2 size={18} color="var(--status-complete)" />
-                    ) : (
-                      <Circle size={18} color="var(--text-muted)" />
-                    )}
-                    <span
-                      style={{
-                        fontSize: '13.5px',
-                        color: c.is_satisfied === 1 ? 'var(--text-white)' : 'var(--text-secondary)',
-                        textDecoration: c.is_satisfied === 1 ? 'line-through' : 'none'
-                      }}
-                    >
-                      {c.title}
-                    </span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '13px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>Assignee:</span>
+                  <strong>{task.owner_name || 'Unassigned'}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>Designated Reviewer:</span>
+                  <strong>{task.reviewer_name || 'None Assigned'}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>Target Milestone:</span>
+                  <strong className="mono">
+                    {task.deadline ? new Date(task.deadline).toLocaleDateString() : 'None scheduled'}
+                  </strong>
+                </div>
+                {task.extended_deadline && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--status-review)' }}>
+                    <span>Approved Extension:</span>
+                    <strong className="mono">{new Date(task.extended_deadline).toLocaleDateString()}</strong>
                   </div>
-
-                  {c.is_satisfied === 1 && (
-                    <span className="mono" style={{ fontSize: '11px', color: 'var(--status-complete)' }}>
-                      Satisfied {c.satisfied_by_name ? `by ${c.satisfied_by_name}` : ''}
-                    </span>
+                )}
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>Disciplinary Status:</span>
+                  {task.is_deadline_exempt === 1 ? (
+                    <span style={{ color: 'var(--status-complete)', fontWeight: 600 }}>Exempt from Strikes</span>
+                  ) : (
+                    <span>Subject to 5-strike policy</span>
                   )}
                 </div>
-              ))
-            )}
-          </div>
-
-          <form onSubmit={handleAddCriterion} style={{ display: 'flex', gap: '8px' }}>
-            <input
-              type="text"
-              className="form-control"
-              placeholder="Add another verifiable acceptance criterion..."
-              value={newCriterionTitle}
-              onChange={(e) => setNewCriterionTitle(e.target.value)}
-            />
-            <button type="submit" className="btn btn-secondary">
-              <Plus size={16} /> Add
-            </button>
-          </form>
-        </div>
-      )}
-
-      {/* Tab: UVCS Changesets */}
-      {activeTab === 'changesets' && (
-        <div className="card">
-          <div className="card-header">
-            <div className="card-title">Unity Version Control (UVCS) Changesets (Gate 2)</div>
-            <button className="btn btn-primary btn-sm" onClick={() => setIsChangesetModalOpen(true)}>
-              <Plus size={14} /> Link Changeset
-            </button>
-          </div>
-
-          {task.is_changeset_exempt === 1 && (
-            <div className="alert alert-warning">
-              <div>
-                <strong>Changeset Exemption Active:</strong> {task.changeset_exemption_reason || 'Non-code task'}.
               </div>
             </div>
-          )}
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {task.changesets?.length === 0 ? (
-              <div className="empty-state" style={{ padding: '24px 0' }}>
-                <GitCommit size={32} />
-                <h3>No UVCS Changesets Linked</h3>
-                <p>Record the Plastic SCM / Unity Version Control changeset ID to satisfy the code verification gate.</p>
-                <button className="btn btn-secondary btn-sm" onClick={() => setIsChangesetModalOpen(true)}>
-                  Link Changeset
-                </button>
-              </div>
-            ) : (
-              task.changesets?.map((cs) => (
-                <div
-                  key={cs.id}
-                  style={{
-                    backgroundColor: 'var(--bg-elevated)',
-                    border: '1px solid var(--border-subtle)',
-                    borderRadius: 'var(--radius-sm)',
-                    padding: '14px 16px'
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span className="mono" style={{ fontSize: '13px', fontWeight: 700, color: 'var(--accent-orange)' }}>
-                        {cs.changeset_id}
-                      </span>
-                      <span className="mono" style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                        branch: {cs.branch || '/main'}
-                      </span>
-                      <span className="demo-tag">MANUALLY RECORDED</span>
-                    </div>
-
-                    <button
-                      className="logout-btn"
-                      title="Unlink"
-                      onClick={() => handleUnlinkChangeset(cs.id)}
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-
-                  <div style={{ fontSize: '13px', color: 'var(--text-white)', marginBottom: '6px' }}>
-                    {cs.comment}
-                  </div>
-
-                  <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
-                    Author: <strong>{cs.author}</strong> • Recorded in hub by {cs.linked_by_name || 'Developer'}
-                  </div>
+            {/* Implementation Artifacts Card (UVCS, Tests, Evidence in one clean panel) */}
+            <div className="card">
+              <div className="card-header">
+                <div className="card-title">
+                  <GitCommit size={16} color="var(--accent-orange)" />
+                  <span>Technical Artifacts & Evidence</span>
                 </div>
-              ))
-            )}
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => setIsChangesetModalOpen(true)}
+                    title="Link UVCS Changeset"
+                  >
+                    <Plus size={13} /> UVCS
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => setIsTestReportModalOpen(true)}
+                    title="Record Test Run"
+                  >
+                    <Plus size={13} /> Test
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => setIsEvidenceModalOpen(true)}
+                    title="Attach Evidence"
+                  >
+                    <Plus size={13} /> Evidence
+                  </button>
+                </div>
+              </div>
+
+              {/* Linked Changesets */}
+              <div style={{ marginBottom: '14px' }}>
+                <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                  UVCS CHANGESETS ({task.changesets?.length || 0})
+                </div>
+                {task.changesets?.length === 0 ? (
+                  <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                    No changesets linked yet.
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {task.changesets?.map((cs) => (
+                      <div
+                        key={cs.id}
+                        style={{
+                          padding: '8px 10px',
+                          backgroundColor: 'var(--bg-elevated)',
+                          borderRadius: 'var(--radius-xs)',
+                          border: '1px solid var(--border-subtle)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between'
+                        }}
+                      >
+                        <div>
+                          <span className="mono" style={{ fontSize: '12px', fontWeight: 700, color: 'var(--accent-orange)' }}>
+                            {cs.changeset_id}
+                          </span>
+                          <span style={{ fontSize: '11px', color: 'var(--text-secondary)', marginLeft: '8px' }}>
+                            {cs.comment}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          className="logout-btn"
+                          onClick={() => handleUnlinkChangeset(cs.id)}
+                          title="Unlink"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Test Reports */}
+              <div style={{ marginBottom: '14px' }}>
+                <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                  AUTOMATED TEST RUNS ({task.test_reports?.length || 0})
+                </div>
+                {task.test_reports?.length === 0 ? (
+                  <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                    No test reports attached.
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {task.test_reports?.map((rpt) => (
+                      <div
+                        key={rpt.id}
+                        style={{
+                          padding: '8px 10px',
+                          backgroundColor: 'var(--bg-elevated)',
+                          borderRadius: 'var(--radius-xs)',
+                          border: '1px solid var(--border-subtle)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between'
+                        }}
+                      >
+                        <div style={{ fontSize: '12px', color: 'var(--text-white)' }}>
+                          <strong>{rpt.test_suite}</strong> ({rpt.passed_count} passed, {rpt.failed_count} failed)
+                        </div>
+                        <span className={`badge ${rpt.result === 'Passed' ? 'badge-verified-complete' : 'badge-changes-requested'}`}>
+                          {rpt.result}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Evidence Artifacts */}
+              <div>
+                <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                  ATTACHED EVIDENCE ({task.evidence?.length || 0})
+                </div>
+                {task.evidence?.length === 0 ? (
+                  <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                    No screenshots or media attached.
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {task.evidence?.map((ev) => (
+                      <div
+                        key={ev.id}
+                        style={{
+                          padding: '8px 10px',
+                          backgroundColor: 'var(--bg-elevated)',
+                          borderRadius: 'var(--radius-xs)',
+                          border: '1px solid var(--border-subtle)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between'
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px' }}>
+                          <span className="badge badge-backlog" style={{ fontSize: '10px' }}>{ev.evidence_type}</span>
+                          <span style={{ color: 'var(--text-white)' }}>{ev.original_filename}</span>
+                        </div>
+                        {ev.stored_filename ? (
+                          <a href={`/api/evidence/${ev.id}/file`} target="_blank" rel="noreferrer" className="btn btn-secondary btn-sm" style={{ padding: '2px 8px', fontSize: '11px' }}>
+                            <Download size={12} /> View
+                          </a>
+                        ) : ev.external_url ? (
+                          <a href={ev.external_url} target="_blank" rel="noreferrer" className="btn btn-secondary btn-sm" style={{ padding: '2px 8px', fontSize: '11px' }}>
+                            <ExternalLink size={12} /> Link
+                          </a>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       )}
 
-      {/* Tab: Reviews */}
+      {/* TAB 2: QUALITY & REVIEWS */}
       {activeTab === 'reviews' && (
-        <div className="card">
-          <div className="card-header">
-            <div className="card-title">Peer Review History & Gates (Gate 3)</div>
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <button
-                className="btn btn-secondary btn-sm"
-                onClick={() => {
-                  setReviewModalMode('request');
-                  setIsReviewModalOpen(true);
-                }}
-              >
-                Request Review
-              </button>
-              {task.reviews?.some((r) => r.decision === 'Pending') && (
-                <button
-                  className="btn btn-primary btn-sm"
-                  onClick={() => {
-                    setReviewModalMode('decision');
-                    setIsReviewModalOpen(true);
-                  }}
-                >
-                  Submit Decision
-                </button>
-              )}
-            </div>
-          </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+          {/* Completion Gate Status Widget */}
+          <GateStatusWidget gateStatus={task.completion_gate_status} />
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            {task.reviews?.length === 0 ? (
-              <div className="empty-state" style={{ padding: '24px 0' }}>
-                <FileCheck2 size={32} />
-                <h3>No Peer Reviews Conducted</h3>
-                <p>Request an independent studio developer to review this implementation before it can be marked complete.</p>
+          {/* Peer Reviews History & Decision Center */}
+          <div className="card">
+            <div className="card-header">
+              <div className="card-title">
+                <FileCheck2 size={16} color="var(--accent-orange)" />
+                <span>Peer Review Decisions & Checklists</span>
+              </div>
+              <div style={{ display: 'flex', gap: '8px' }}>
                 <button
+                  type="button"
                   className="btn btn-secondary btn-sm"
                   onClick={() => {
                     setReviewModalMode('request');
                     setIsReviewModalOpen(true);
                   }}
                 >
-                  Request Review
+                  <Plus size={14} /> Request Review
                 </button>
-              </div>
-            ) : (
-              task.reviews?.map((rev) => (
-                <div
-                  key={rev.id}
-                  style={{
-                    backgroundColor: 'var(--bg-elevated)',
-                    border: '1px solid var(--border-subtle)',
-                    borderRadius: 'var(--radius-sm)',
-                    padding: '16px'
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <span
-                        className={`badge ${
-                          rev.decision === 'Approved'
-                            ? 'badge-verified-complete'
-                            : rev.decision === 'Changes Requested'
-                            ? 'badge-changes-requested'
-                            : rev.decision === 'Pending'
-                            ? 'badge-ready-for-review'
-                            : 'badge-blocked'
-                        }`}
-                      >
-                        {rev.decision}
-                      </span>
-                      <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                        Developer: <strong>{rev.developer_name}</strong> • Reviewer: <strong>{rev.reviewer_name}</strong>
-                      </span>
-                    </div>
-
-                    {rev.decision === 'Pending' && user && rev.reviewer_id === user.id && (
-                      <button
-                        className="btn btn-primary btn-sm"
-                        onClick={() => {
-                          setReviewModalMode('decision');
-                          setIsReviewModalOpen(true);
-                        }}
-                      >
-                        Submit Decision
-                      </button>
-                    )}
-                  </div>
-
-                  {rev.findings && (
-                    <div style={{ marginTop: '10px', fontSize: '13px', color: 'var(--text-white)' }}>
-                      <strong>Findings:</strong> {rev.findings}
-                    </div>
-                  )}
-
-                  {rev.required_fixes && (
-                    <div style={{ marginTop: '8px', fontSize: '13px', color: 'var(--status-changes)' }}>
-                      <strong>Required Fixes:</strong> {rev.required_fixes}
-                    </div>
-                  )}
-
-                  {rev.checklist && rev.checklist.length > 0 && (
-                    <div style={{ marginTop: '12px', borderTop: '1px solid var(--border-subtle)', paddingTop: '10px' }}>
-                      <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
-                        VERIFIED CHECKLIST:
-                      </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '4px' }}>
-                        {rev.checklist.map((item: any) => (
-                          <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11.5px' }}>
-                            {item.passed ? (
-                              <CheckCircle2 size={13} color="var(--status-complete)" />
-                            ) : (
-                              <Circle size={13} color="var(--text-muted)" />
-                            )}
-                            <span style={{ color: item.passed ? 'var(--text-white)' : 'var(--text-secondary)' }}>
-                              {item.label}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Tab: Evidence */}
-      {activeTab === 'evidence' && (
-        <div className="card">
-          <div className="card-header">
-            <div className="card-title">Verification Evidence Artifacts (Gate 4)</div>
-            <button className="btn btn-primary btn-sm" onClick={() => setIsEvidenceModalOpen(true)}>
-              <Plus size={14} /> Attach Evidence
-            </button>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {task.evidence?.length === 0 ? (
-              <div className="empty-state" style={{ padding: '24px 0' }}>
-                <FileImage size={32} />
-                <h3>No Evidence Uploaded</h3>
-                <p>Attach in-editor screenshots, video clips, or Unity profile/test logs to prove completion.</p>
-                <button className="btn btn-secondary btn-sm" onClick={() => setIsEvidenceModalOpen(true)}>
-                  Attach Evidence
-                </button>
-              </div>
-            ) : (
-              task.evidence?.map((ev) => (
-                <div
-                  key={ev.id}
-                  style={{
-                    backgroundColor: 'var(--bg-elevated)',
-                    border: '1px solid var(--border-subtle)',
-                    borderRadius: 'var(--radius-sm)',
-                    padding: '14px 16px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: '16px'
-                  }}
-                >
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                      <span className="badge badge-backlog">{ev.evidence_type.toUpperCase()}</span>
-                      <span style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text-white)' }}>
-                        {ev.original_filename}
-                      </span>
-                      {ev.file_size > 0 && (
-                        <span className="mono" style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                          ({(ev.file_size / 1024).toFixed(1)} KB)
-                        </span>
-                      )}
-                    </div>
-                    <div style={{ fontSize: '12.5px', color: 'var(--text-secondary)' }}>
-                      {ev.description}
-                    </div>
-                  </div>
-
-                  <div>
-                    {ev.stored_filename ? (
-                      <a
-                        href={`/api/evidence/${ev.id}/file`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="btn btn-secondary btn-sm"
-                      >
-                        <Download size={14} /> View File
-                      </a>
-                    ) : ev.external_url ? (
-                      <a
-                        href={ev.external_url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="btn btn-secondary btn-sm"
-                      >
-                        <ExternalLink size={14} /> Open Link
-                      </a>
-                    ) : null}
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Tab: Tests */}
-      {activeTab === 'tests' && (
-        <div className="card">
-          <div className="card-header">
-            <div className="card-title">Unity Test Framework Reports (Gate 5)</div>
-            <button className="btn btn-primary btn-sm" onClick={() => setIsTestReportModalOpen(true)}>
-              <Plus size={14} /> Record Test Run
-            </button>
-          </div>
-
-          {task.is_test_exempt === 1 && (
-            <div className="alert alert-warning">
-              <div>
-                <strong>Automated Test Exemption Active:</strong> {task.test_exemption_reason || 'Non-testable scope'}.
+                {hasPendingReview && (isReviewer || isAdminOrOwner) && !isOwner && (
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm"
+                    onClick={() => {
+                      setReviewModalMode('decision');
+                      setIsReviewModalOpen(true);
+                    }}
+                  >
+                    Conduct Review
+                  </button>
+                )}
               </div>
             </div>
-          )}
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {task.test_reports?.length === 0 ? (
-              <div className="empty-state" style={{ padding: '24px 0' }}>
-                <FileText size={32} />
-                <h3>No Test Reports on Record</h3>
-                <p>Record a passing test run for this task or its associated changeset revision.</p>
-                <button className="btn btn-secondary btn-sm" onClick={() => setIsTestReportModalOpen(true)}>
-                  Record Test Run
-                </button>
-              </div>
-            ) : (
-              task.test_reports?.map((rpt) => (
-                <div
-                  key={rpt.id}
-                  style={{
-                    backgroundColor: 'var(--bg-elevated)',
-                    border: '1px solid var(--border-subtle)',
-                    borderRadius: 'var(--radius-sm)',
-                    padding: '14px 16px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between'
-                  }}
-                >
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                      <span style={{ fontWeight: 600, fontSize: '13.5px', color: 'var(--text-white)' }}>
-                        {rpt.test_suite}
-                      </span>
-                      <span className="mono" style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                        rev: {rpt.revision}
-                      </span>
-                      {rpt.source === 'manual' && <span className="demo-tag">MANUAL ENTRY</span>}
-                    </div>
-                    <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                      Passed: <strong style={{ color: 'var(--status-complete)' }}>{rpt.passed_count}</strong> • Failed: <strong style={{ color: 'var(--status-changes)' }}>{rpt.failed_count}</strong> • Unity {rpt.unity_version} • Runner: {rpt.runner_identity}
-                    </div>
-                  </div>
-
-                  <span
-                    className={`badge ${
-                      rpt.result === 'Passed' ? 'badge-verified-complete' : 'badge-changes-requested'
-                    }`}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              {task.reviews?.length === 0 ? (
+                <div className="empty-state" style={{ padding: '28px 0' }}>
+                  <FileCheck2 size={36} color="var(--accent-orange)" />
+                  <h3>No Peer Reviews on Record</h3>
+                  <p>Request an independent studio developer to evaluate this implementation before marking it complete.</p>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => {
+                      setReviewModalMode('request');
+                      setIsReviewModalOpen(true);
+                    }}
                   >
-                    {rpt.result}
-                  </span>
+                    Request Peer Review
+                  </button>
                 </div>
-              ))
-            )}
+              ) : (
+                task.reviews?.map((rev) => (
+                  <div
+                    key={rev.id}
+                    style={{
+                      backgroundColor: 'var(--bg-elevated)',
+                      border: '1px solid var(--border-subtle)',
+                      borderRadius: 'var(--radius-sm)',
+                      padding: '16px'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', flexWrap: 'wrap', gap: '10px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <span
+                          className={`badge ${
+                            rev.decision === 'Approved'
+                              ? 'badge-verified-complete'
+                              : rev.decision === 'Changes Requested'
+                              ? 'badge-changes-requested'
+                              : rev.decision === 'Pending'
+                              ? 'badge-ready-for-review'
+                              : 'badge-blocked'
+                          }`}
+                        >
+                          {rev.decision}
+                        </span>
+                        <span style={{ fontSize: '12.5px', color: 'var(--text-secondary)' }}>
+                          Author: <strong>{rev.developer_name}</strong> • Reviewer: <strong>{rev.reviewer_name}</strong>
+                        </span>
+                      </div>
+
+                      {rev.decision === 'Pending' && (isReviewer || isAdminOrOwner) && !isOwner && (
+                        <button
+                          type="button"
+                          className="btn btn-primary btn-sm"
+                          onClick={() => {
+                            setReviewModalMode('decision');
+                            setIsReviewModalOpen(true);
+                          }}
+                        >
+                          Submit Decision
+                        </button>
+                      )}
+                    </div>
+
+                    {rev.findings && (
+                      <div style={{ marginTop: '8px', fontSize: '13px', color: 'var(--text-white)' }}>
+                        <strong>Findings:</strong> {rev.findings}
+                      </div>
+                    )}
+
+                    {rev.required_fixes && (
+                      <div style={{ marginTop: '8px', fontSize: '13px', color: 'var(--status-changes)' }}>
+                        <strong>Required Fixes:</strong> {rev.required_fixes}
+                      </div>
+                    )}
+
+                    {rev.checklist && rev.checklist.length > 0 && (
+                      <div style={{ marginTop: '12px', borderTop: '1px solid var(--border-subtle)', paddingTop: '10px' }}>
+                        <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                          VERIFIED CHECKLIST:
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '6px' }}>
+                          {rev.checklist.map((item: any) => (
+                            <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px' }}>
+                              {item.passed ? (
+                                <CheckCircle2 size={13} color="var(--status-complete)" />
+                              ) : (
+                                <Circle size={13} color="var(--text-muted)" />
+                              )}
+                              <span style={{ color: item.passed ? 'var(--text-white)' : 'var(--text-secondary)' }}>
+                                {item.label}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
       )}
 
-      {/* Tab: Comments */}
-      {activeTab === 'comments' && (
+      {/* TAB 3: DISCUSSION & HISTORY */}
+      {activeTab === 'discussion' && (
         <div className="card">
           <div className="card-header">
-            <div className="card-title">Development Discussion</div>
+            <div className="card-title">
+              <MessageSquare size={16} color="var(--accent-orange)" />
+              <span>Development Discussion & Comments</span>
+            </div>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '24px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '20px' }}>
             {task.comments?.length === 0 ? (
               <div className="empty-state" style={{ padding: '24px 0' }}>
                 <MessageSquare size={32} />
-                <p>No comments on this task yet.</p>
+                <p>No discussion comments on this task yet. Post updates or questions below.</p>
               </div>
             ) : (
               task.comments?.map((c) => (
@@ -931,13 +1130,13 @@ export const TaskDetailPage: React.FC<TaskDetailPageProps> = ({
           <form onSubmit={handleAddComment} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <textarea
               className="form-control"
-              placeholder="Post a technical comment, bug note, or implementation update..."
+              placeholder="Post a technical comment, implementation update, or note..."
               value={newComment}
               onChange={(e) => setNewComment(e.target.value)}
               rows={3}
             />
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <button type="submit" className="btn btn-primary btn-sm">
+              <button type="submit" className="btn btn-primary btn-sm" disabled={!newComment.trim()}>
                 <Send size={14} /> Post Comment
               </button>
             </div>
@@ -992,7 +1191,7 @@ export const TaskDetailPage: React.FC<TaskDetailPageProps> = ({
             <form onSubmit={handleExtendDeadline}>
               <div className="modal-body">
                 <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '16px' }}>
-                  Extending a task deadline updates the accountability baseline under the 5-strike policy. Strikes are not issued before the approved extension expires.
+                  Extending a task deadline updates the accountability baseline under the 5-strike policy.
                 </div>
                 <div className="form-group">
                   <label className="form-label">New Extended Deadline</label>
@@ -1050,7 +1249,7 @@ export const TaskDetailPage: React.FC<TaskDetailPageProps> = ({
             <form onSubmit={handleExemptDeadline}>
               <div className="modal-body">
                 <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '16px' }}>
-                  Exempted tasks do not incur disciplinary strikes upon missing their milestone deadline. This action is permanently recorded in the workspace audit trail.
+                  Exempted tasks do not incur disciplinary strikes upon missing their milestone deadline.
                 </div>
                 <div className="form-group">
                   <label className="form-label">Exemption Reason (Mandatory)</label>

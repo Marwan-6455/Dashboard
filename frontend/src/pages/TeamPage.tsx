@@ -70,7 +70,7 @@ export const TeamPage: React.FC<TeamPageProps> = ({
   // Modals state
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteRole, setInviteRole] = useState<'developer' | 'reviewer' | 'admin'>('developer');
+  const [inviteRole, setInviteRole] = useState<'developer' | 'team_manager' | 'reviewer' | 'admin'>('developer');
   const [generatedInviteLink, setGeneratedInviteLink] = useState<string | null>(null);
   const [isInviting, setIsInviting] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -1310,6 +1310,7 @@ export const TeamPage: React.FC<TeamPageProps> = ({
                       onChange={(e) => setInviteRole(e.target.value as any)}
                     >
                       <option value="developer">Developer (Task execution, evidence, submit reviews)</option>
+                      <option value="team_manager">Team Manager (Lead and assign team tasks, review work)</option>
                       <option value="reviewer">Reviewer (Peer review approval, test evaluation)</option>
                       <option value="admin">Admin (Full project and workspace management)</option>
                     </select>
