@@ -436,7 +436,7 @@ export const LoginPage: React.FC = () => {
                 }}
               />
               <span style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px', display: 'block' }}>
-                Direct registration creates an isolated personal space. Enter an invitation code to join the private Cindermarch Studio workspace.
+                Every new account registers as a Developer. If an authorized invitation token is provided, studio membership is activated immediately; otherwise, membership is held for administrator approval.
               </span>
             </div>
 

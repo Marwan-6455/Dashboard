@@ -1073,6 +1073,149 @@ export function runMigrations(db: DatabaseSync): void {
       console.error('Error applying migration 010:', err);
     }
   }
+
+  // Migration 011: Repair Role Permission Database Check Constraints and Support Canonical Roles
+  const m11 = stmt.get('011_repair_role_permission_check_constraints_and_canonical_roles');
+  if (!m11) {
+    try {
+      console.log('[Migration 011] Recreating workspace_members and workspace_invitations with canonical roles check constraint...');
+
+      // Step 1: Temporarily disable foreign keys for table recreation
+      db.exec('PRAGMA foreign_keys = OFF;');
+
+      // Step 2: Drop existing triggers on workspace_members
+      db.exec(`
+        DROP TRIGGER IF EXISTS trg_enforce_super_admin_limit_insert;
+        DROP TRIGGER IF EXISTS trg_enforce_super_admin_limit_update;
+      `);
+
+      // Inspect existing columns on workspace_members for dynamic copy
+      const wmCols = (db.prepare('PRAGMA table_info(workspace_members)').all() as any[]).map((c) => c.name);
+      const hasCol = (col: string) => wmCols.includes(col);
+
+      const selectStatus = hasCol('status') ? 'status' : "'active' as status";
+      const selectIsSuspended = hasCol('is_suspended') ? 'is_suspended' : '0 as is_suspended';
+      const selectSuspendedAt = hasCol('suspended_at') ? 'suspended_at' : 'NULL as suspended_at';
+      const selectSuspensionReason = hasCol('suspension_reason') ? 'suspension_reason' : 'NULL as suspension_reason';
+      const selectReinstatedAt = hasCol('reinstated_at') ? 'reinstated_at' : 'NULL as reinstated_at';
+      const selectReinstatedBy = hasCol('reinstated_by') ? 'reinstated_by' : 'NULL as reinstated_by';
+      const selectReinstatementReason = hasCol('reinstatement_reason') ? 'reinstatement_reason' : 'NULL as reinstatement_reason';
+
+      // Step 3: Create workspace_members_new with canonical roles check constraint
+      db.exec(`
+        CREATE TABLE workspace_members_new (
+          id TEXT PRIMARY KEY,
+          workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+          user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          role TEXT NOT NULL CHECK(role IN ('owner', 'super_admin', 'admin', 'team_manager', 'team_member', 'developer', 'reviewer')),
+          status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active', 'pending_approval', 'suspended', 'rejected')),
+          joined_at TEXT NOT NULL,
+          is_suspended INTEGER NOT NULL DEFAULT 0,
+          suspended_at TEXT,
+          suspension_reason TEXT,
+          reinstated_at TEXT,
+          reinstated_by TEXT REFERENCES users(id),
+          reinstatement_reason TEXT,
+          UNIQUE(workspace_id, user_id)
+        );
+
+        INSERT INTO workspace_members_new (
+          id, workspace_id, user_id, role, status, joined_at,
+          is_suspended, suspended_at, suspension_reason, reinstated_at, reinstated_by, reinstatement_reason
+        )
+        SELECT
+          id, workspace_id, user_id, role, ${selectStatus}, joined_at,
+          ${selectIsSuspended}, ${selectSuspendedAt}, ${selectSuspensionReason}, ${selectReinstatedAt}, ${selectReinstatedBy}, ${selectReinstatementReason}
+        FROM workspace_members;
+
+        DROP TABLE workspace_members;
+        ALTER TABLE workspace_members_new RENAME TO workspace_members;
+
+        CREATE INDEX IF NOT EXISTS idx_wm_ws ON workspace_members(workspace_id);
+        CREATE INDEX IF NOT EXISTS idx_wm_user ON workspace_members(user_id);
+
+        CREATE TRIGGER IF NOT EXISTS trg_enforce_super_admin_limit_insert
+        BEFORE INSERT ON workspace_members
+        FOR EACH ROW
+        WHEN NEW.role IN ('owner', 'super_admin') AND NEW.workspace_id = 'ws_cindermarch'
+        BEGIN
+          SELECT CASE
+            WHEN (
+              SELECT COUNT(*) FROM workspace_members
+              WHERE workspace_id = NEW.workspace_id
+                AND role IN ('owner', 'super_admin')
+                AND user_id != NEW.user_id
+            ) >= 3
+            THEN RAISE(ABORT, 'Access control limit reached: Exactly three accounts may hold Super Admin or Owner privileges in Cindermarch Studio.')
+          END;
+        END;
+
+        CREATE TRIGGER IF NOT EXISTS trg_enforce_super_admin_limit_update
+        BEFORE UPDATE OF role ON workspace_members
+        FOR EACH ROW
+        WHEN NEW.role IN ('owner', 'super_admin') AND NEW.workspace_id = 'ws_cindermarch'
+        BEGIN
+          SELECT CASE
+            WHEN (
+              SELECT COUNT(*) FROM workspace_members
+              WHERE workspace_id = NEW.workspace_id
+                AND role IN ('owner', 'super_admin')
+                AND user_id != NEW.user_id
+            ) >= 3
+            THEN RAISE(ABORT, 'Access control limit reached: Exactly three accounts may hold Super Admin or Owner privileges in Cindermarch Studio.')
+          END;
+        END;
+      `);
+
+      // Step 4: Recreate workspace_invitations with canonical roles check constraint
+      const wiCols = (db.prepare('PRAGMA table_info(workspace_invitations)').all() as any[]).map((c) => c.name);
+      const selectTeamId = wiCols.includes('team_id') ? 'team_id' : 'NULL as team_id';
+
+      db.exec(`
+        CREATE TABLE workspace_invitations_new (
+          id TEXT PRIMARY KEY,
+          workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+          email TEXT NOT NULL,
+          invitation_token TEXT UNIQUE NOT NULL,
+          role TEXT NOT NULL CHECK(role IN ('owner', 'super_admin', 'admin', 'team_manager', 'team_member', 'developer', 'reviewer')),
+          status TEXT NOT NULL CHECK(status IN ('pending', 'accepted', 'revoked', 'expired')),
+          invited_by TEXT NOT NULL REFERENCES users(id),
+          created_at TEXT NOT NULL,
+          expires_at TEXT NOT NULL,
+          team_id TEXT
+        );
+
+        INSERT INTO workspace_invitations_new (
+          id, workspace_id, email, invitation_token, role, status, invited_by, created_at, expires_at, team_id
+        )
+        SELECT
+          id, workspace_id, email, invitation_token, role, status, invited_by, created_at, expires_at, ${selectTeamId}
+        FROM workspace_invitations;
+
+        DROP TABLE workspace_invitations;
+        ALTER TABLE workspace_invitations_new RENAME TO workspace_invitations;
+
+        CREATE INDEX IF NOT EXISTS idx_wi_token ON workspace_invitations(invitation_token);
+      `);
+
+      // Step 5: Restore foreign keys & verify database integrity
+      db.exec('PRAGMA foreign_keys = ON;');
+      const fkViolations = db.prepare('PRAGMA foreign_key_check').all();
+      if (fkViolations && fkViolations.length > 0) {
+        console.error('Foreign key integrity violation detected after migration 011:', fkViolations);
+        throw new Error('Foreign key integrity violation during migration 011');
+      }
+
+      db.prepare('INSERT INTO _migrations (name, applied_at) VALUES (?, ?)').run(
+        '011_repair_role_permission_check_constraints_and_canonical_roles',
+        new Date().toISOString()
+      );
+      console.log('Migration 011 (repair_role_permission_check_constraints_and_canonical_roles) applied successfully.');
+    } catch (err) {
+      console.error('Error applying migration 011:', err);
+      throw err;
+    }
+  }
 }
 
 

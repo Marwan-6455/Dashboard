@@ -139,24 +139,38 @@ export function authMiddleware(req: AuthenticatedRequest, res: Response, next: N
         WHERE workspace_id = ? AND user_id = ?
       `).get(workspaceId, user.id) as any;
 
-      if (member) {
-        if (member.is_suspended === 1 || member.status === 'suspended') {
-          res.status(403).json({
-            error: `Workspace membership suspended: ${member.suspension_reason || 'Account suspended by Studio Administration.'}`,
-            isSuspended: true,
-            suspensionReason: member.suspension_reason || 'Account suspended by Studio Administration.',
-            suspendedAt: member.suspended_at
-          });
-          return;
-        }
+      if (!member) {
+        res.status(403).json({
+          error: 'Access denied: You are not an authorized member of this workspace.',
+          noMembership: true
+        });
+        return;
+      }
 
-        if (member.status === 'pending_approval') {
-          res.status(403).json({
-            error: 'Workspace membership pending administrator approval. Please wait for the Primary Owner or a Super Admin to approve your account.',
-            isPendingApproval: true
-          });
-          return;
-        }
+      if (member.is_suspended === 1 || member.status === 'suspended') {
+        res.status(403).json({
+          error: `Workspace membership suspended: ${member.suspension_reason || 'Account suspended by Studio Administration.'}`,
+          isSuspended: true,
+          suspensionReason: member.suspension_reason || 'Account suspended by Studio Administration.',
+          suspendedAt: member.suspended_at
+        });
+        return;
+      }
+
+      if (member.status === 'pending_approval') {
+        res.status(403).json({
+          error: 'Workspace membership pending administrator approval. Please wait for the Primary Owner or a Super Admin to approve your account.',
+          isPendingApproval: true
+        });
+        return;
+      }
+
+      if (member.status === 'rejected') {
+        res.status(403).json({
+          error: 'Workspace membership request was rejected by Studio Administration.',
+          isRejected: true
+        });
+        return;
       }
     } catch {
       // Graceful fallback if table/column in migration is pending

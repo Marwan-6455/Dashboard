@@ -2175,26 +2175,57 @@ export const AdministrationPage: React.FC<{ onNavigate?: (page: string, params?:
 
             <form onSubmit={handleChangeRole}>
               <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-                  Updating role for <strong>{roleTargetUser.displayName}</strong>.
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', backgroundColor: 'var(--bg-elevated)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)' }}>
+                  <div
+                    style={{
+                      width: '36px',
+                      height: '36px',
+                      borderRadius: '50%',
+                      backgroundColor: 'rgba(235, 87, 87, 0.15)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontWeight: 700,
+                      color: 'var(--accent-orange)'
+                    }}
+                  >
+                    {roleTargetUser.displayName.slice(0, 1).toUpperCase()}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text-white)' }}>
+                      {roleTargetUser.displayName}
+                    </div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                      @{roleTargetUser.username}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '10px', color: 'var(--text-muted)', textAlign: 'right', marginBottom: '2px' }}>
+                      Current Role
+                    </div>
+                    <span className="badge badge-backlog" style={{ fontSize: '10px', fontWeight: 600, textTransform: 'uppercase' }}>
+                      {roleTargetUser.role?.replace(/_/g, ' ') || 'DEVELOPER'}
+                    </span>
+                  </div>
                 </div>
 
                 <div>
-                  <label className="form-label">Select Permitted Role *</label>
+                  <label className="form-label" style={{ fontWeight: 600, marginBottom: '6px' }}>
+                    Select Permitted Role *
+                  </label>
                   <select
                     value={newSelectedRole}
                     onChange={(e) => setNewSelectedRole(e.target.value as UserRole)}
                     className="form-input"
+                    style={{ fontSize: '13px' }}
                   >
-                    <option value="team_member">Team Member</option>
-                    <option value="team_manager">Team Manager</option>
-                    <option value="developer">Developer</option>
-                    <option value="designer">Designer</option>
-                    <option value="qa">QA Engineer</option>
-                    <option value="reviewer">Reviewer</option>
+                    <option value="team_manager">Team Manager — Authorized Team-Level Lead</option>
+                    <option value="developer">Developer — Standard Engineering & Execution (Default)</option>
+                    <option value="team_member">Team Member — Studio General Contributor</option>
+                    <option value="reviewer">Reviewer — Peer Review & Quality Assurance</option>
                   </select>
-                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '6px' }}>
-                    * Super Admin appointments must be issued through the dedicated Super Admin Governance portal with Primary Owner reauthentication.
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '8px', lineHeight: 1.4 }}>
+                    ℹ️ <strong>Governance Note:</strong> Irrevocable Apex Authority and Super Admin appointments cannot be granted through ordinary role management. Super Admins are appointed strictly through the Primary Owner Governance portal.
                   </div>
                 </div>
               </div>
@@ -2204,6 +2235,7 @@ export const AdministrationPage: React.FC<{ onNavigate?: (page: string, params?:
                   type="button"
                   className="btn btn-secondary"
                   onClick={() => setIsRoleModalOpen(false)}
+                  disabled={isUpdatingRole}
                 >
                   Cancel
                 </button>

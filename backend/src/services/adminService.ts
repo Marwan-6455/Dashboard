@@ -525,42 +525,62 @@ export class AdminService {
   }
 
   /**
-   * Change member permitted role (Team Manager / Team Member)
+   * Change member permitted role (Team Manager / Developer / Team Member / Reviewer)
    */
   static changeMemberRole(params: {
     workspaceId: string;
     actorId: string;
     targetUserId: string;
     newRole: UserRole;
-  }): { success: boolean } {
+  }): { success: boolean; previousRole: string; newRole: string } {
     const db = getDb();
     const ws = db.prepare('SELECT owner_id, primary_owner_id FROM workspaces WHERE id = ?').get(params.workspaceId) as any;
     const primaryOwnerId = ws?.primary_owner_id || ws?.owner_id;
 
-    if (params.targetUserId === primaryOwnerId) {
-      throw new Error('Cannot change the role of the Primary Owner.');
+    // 1. Verify caller authorization
+    const actorMember = db.prepare('SELECT role FROM workspace_members WHERE workspace_id = ? AND user_id = ?').get(params.workspaceId, params.actorId) as any;
+    const isAuthorized = params.actorId === primaryOwnerId || actorMember?.role === 'owner' || actorMember?.role === 'super_admin' || actorMember?.role === 'admin';
+    if (!isAuthorized) {
+      throw new Error('Access denied: You do not have authority to change member roles.');
     }
 
-    // Role elevation to super_admin or owner must go through appointSuperAdmin or transferPrimaryOwnership
+    // 2. Irrevocable Apex Authority protection
+    if (params.targetUserId === primaryOwnerId) {
+      throw new Error('The Irrevocable Apex Authority account cannot be demoted, suspended, or modified.');
+    }
+
+    // 3. Super Admin & Owner elevations must use dedicated governance workflow
     if (params.newRole === 'super_admin' || params.newRole === 'owner') {
-      throw new Error("Super Admin or Primary Owner promotions must be executed through the dedicated 'Appoint Super Admin' procedure.");
+      throw new Error("Super Admin or Primary Owner promotions must be executed through the dedicated 'Appoint Super Admin' governance procedure.");
+    }
+
+    // 4. Fetch target member and protect Super Admins from routine role changes
+    const currentMember = db.prepare('SELECT role FROM workspace_members WHERE workspace_id = ? AND user_id = ?').get(params.workspaceId, params.targetUserId) as any;
+    if (!currentMember) {
+      throw new Error(`Member '${params.targetUserId}' not found in workspace.`);
+    }
+
+    const previousRole = currentMember.role;
+    if (previousRole === 'super_admin') {
+      throw new Error("Super Admin accounts can only be revoked by the Primary Owner through the dedicated Super Admin Governance portal.");
     }
 
     const actorUser = db.prepare('SELECT display_name FROM users WHERE id = ?').get(params.actorId) as any;
     const targetUser = db.prepare('SELECT display_name, roles FROM users WHERE id = ?').get(params.targetUserId) as any;
 
+    // 5. Update workspace_members
     db.prepare(`
       UPDATE workspace_members
       SET role = ?
       WHERE workspace_id = ? AND user_id = ?
     `).run(params.newRole, params.workspaceId, params.targetUserId);
 
-    // Update users.roles JSON
+    // 6. Update users.roles JSON array
     let roles: string[] = [];
     try {
       roles = JSON.parse(targetUser.roles || '[]');
     } catch {}
-    roles = roles.filter((r) => r !== 'super_admin' && r !== 'owner' && r !== 'admin' && r !== 'team_manager');
+    roles = roles.filter((r) => r !== 'super_admin' && r !== 'owner' && r !== 'admin' && r !== 'team_manager' && r !== 'team_member' && r !== 'developer' && r !== 'reviewer');
     roles.unshift(params.newRole);
 
     db.prepare('UPDATE users SET roles = ?, updated_at = ? WHERE id = ?').run(
@@ -569,6 +589,7 @@ export class AdminService {
       params.targetUserId
     );
 
+    // 7. Audit log with previous and new role values
     this.logAudit({
       workspaceId: params.workspaceId,
       actorId: params.actorId,
@@ -577,10 +598,11 @@ export class AdminService {
       targetType: 'user',
       targetId: params.targetUserId,
       targetName: targetUser?.display_name || params.targetUserId,
-      details: { newRole: params.newRole }
+      details: { previousRole, newRole: params.newRole },
+      reason: `Workspace role changed from ${previousRole} to ${params.newRole}.`
     });
 
-    return { success: true };
+    return { success: true, previousRole, newRole: params.newRole };
   }
 
   /**

@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS workspace_invitations (
   workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
   email TEXT NOT NULL,
   invitation_token TEXT UNIQUE NOT NULL,
-  role TEXT NOT NULL CHECK(role IN ('admin', 'developer', 'reviewer')),
+  role TEXT NOT NULL CHECK(role IN ('owner', 'super_admin', 'admin', 'team_manager', 'team_member', 'developer', 'reviewer')),
   status TEXT NOT NULL CHECK(status IN ('pending', 'accepted', 'revoked', 'expired')),
   invited_by TEXT NOT NULL REFERENCES users(id),
   created_at TEXT NOT NULL,

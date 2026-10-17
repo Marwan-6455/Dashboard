@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { ShieldAlert } from 'lucide-react';
 import { Sidebar } from './components/Sidebar.js';
 import { Header } from './components/Header.js';
 import { TaskModal } from './components/TaskModal.js';
@@ -34,7 +35,15 @@ import { Task, WorkspaceEntryWarning } from './types/index.js';
 import { apiRequest } from './api/client.js';
 
 export const App: React.FC = () => {
-  const { user, isLoading, logout } = useAuth();
+  const { user, isLoading, logout, activeWorkspace } = useAuth();
+
+  const isSuperAdminOrOwner =
+    user?.roles?.includes('owner') ||
+    user?.roles?.includes('super_admin') ||
+    user?.roles?.includes('admin') ||
+    activeWorkspace?.role === 'owner' ||
+    activeWorkspace?.role === 'super_admin' ||
+    activeWorkspace?.role === 'admin';
   const [currentPage, setCurrentPage] = useState<string>('overview');
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
@@ -350,7 +359,29 @@ export const App: React.FC = () => {
         )}
 
         {currentPage === 'admin' && (
-          <AdministrationPage onNavigate={handleNavigate} />
+          isSuperAdminOrOwner ? (
+            <AdministrationPage onNavigate={handleNavigate} />
+          ) : (
+            <div className="card" style={{ padding: '48px 24px', textAlign: 'center', margin: '40px auto', maxWidth: '540px' }}>
+              <div style={{ width: '56px', height: '56px', borderRadius: '50%', backgroundColor: 'rgba(239, 68, 68, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', color: '#EF4444' }}>
+                <ShieldAlert size={32} />
+              </div>
+              <h2 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-white)', marginBottom: '8px' }}>
+                Access Restricted
+              </h2>
+              <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: '20px' }}>
+                The Cindermarch Administration Portal is reserved exclusively for Super Admin and Irrevocable Apex Authority accounts.
+              </p>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => handleNavigate('overview')}
+                style={{ margin: '0 auto' }}
+              >
+                Return to Overview
+              </button>
+            </div>
+          )
         )}
       </div>
 

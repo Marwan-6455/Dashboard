@@ -20,8 +20,7 @@ const signupSchema = z.object({
   email: z.string().email('Invalid email address'),
   displayName: z.string().min(2, 'Display name must be at least 2 characters'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
-  invitationToken: z.string().optional(),
-  workspaceName: z.string().optional()
+  invitationToken: z.string().optional()
 });
 
 const profileSchema = z.object({
@@ -126,7 +125,7 @@ authRouter.post('/signup', authRateLimiter(5, 60000), (req: Request, res: Respon
     return;
   }
 
-  const { username, email, displayName, password, invitationToken, workspaceName } = parseResult.data;
+  const { username, email, displayName, password, invitationToken } = parseResult.data;
   const db = getDb();
 
   // Check if username or email already taken
@@ -145,16 +144,20 @@ authRouter.post('/signup', authRateLimiter(5, 60000), (req: Request, res: Respon
   const passwordHash = bcrypt.hashSync(password, 10);
   const now = new Date().toISOString();
 
-  let targetWorkspaceId: string | null = null;
-  let assignedRole: UserRole = 'developer';
+  // Mandatory: Every newly registered account receives the 'developer' role by default
+  const defaultRoles: UserRole[] = ['developer'];
+
+  let targetWorkspaceId = 'ws_cindermarch';
+  let assignedMemberRole: UserRole = 'developer';
+  let memberStatus: 'active' | 'pending_approval' = 'pending_approval';
 
   // Check invitation if supplied
-  if (invitationToken) {
+  if (invitationToken && invitationToken.trim()) {
     const invStmt = db.prepare(`
       SELECT * FROM workspace_invitations 
       WHERE invitation_token = ? AND status = 'pending'
     `);
-    const inv = invStmt.get(invitationToken) as any;
+    const inv = invStmt.get(invitationToken.trim()) as any;
 
     if (!inv) {
       res.status(400).json({ error: 'Invalid or expired invitation token.' });
@@ -168,34 +171,44 @@ authRouter.post('/signup', authRateLimiter(5, 60000), (req: Request, res: Respon
     }
 
     targetWorkspaceId = inv.workspace_id;
-    assignedRole = inv.role;
+    assignedMemberRole = inv.role || 'developer';
+
+    // Apex Authority can never be granted via an invitation
+    if (assignedMemberRole === 'owner') {
+      assignedMemberRole = 'developer';
+    }
+
+    // If inviting as super_admin, verify slot capacity (< 2 appointed Super Admins)
+    if (assignedMemberRole === 'super_admin') {
+      const ws = db.prepare('SELECT owner_id, primary_owner_id FROM workspaces WHERE id = ?').get(targetWorkspaceId) as any;
+      const primaryOwnerId = ws?.primary_owner_id || ws?.owner_id;
+      const currentSuperAdmins = (db.prepare(`
+        SELECT COUNT(*) as c FROM workspace_members 
+        WHERE workspace_id = ? AND role = 'super_admin' AND user_id != ?
+      `).get(targetWorkspaceId, primaryOwnerId) as any)?.c || 0;
+
+      if (currentSuperAdmins >= 2) {
+        res.status(400).json({ error: 'Super Admin slot limit reached: Exactly two Super Admin accounts can be appointed.' });
+        return;
+      }
+    }
+
+    memberStatus = 'active';
 
     // Mark invitation accepted
     db.prepare("UPDATE workspace_invitations SET status = 'accepted' WHERE id = ?").run(inv.id);
-  } else if (workspaceName && workspaceName.trim()) {
-    // User is creating a brand new isolated workspace
-    targetWorkspaceId = `ws_${Date.now()}_${uuidv4().slice(0, 6)}`;
-    const slug = workspaceName.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 32);
-    db.prepare(`
-      INSERT INTO workspaces (id, name, slug, owner_id, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run(targetWorkspaceId, workspaceName.trim(), slug, userId, now, now);
-    assignedRole = 'owner';
-  } else {
-    // Non-invited user creates their personal development workspace so Cindermarch data stays isolated
-    targetWorkspaceId = `ws_${Date.now()}_${uuidv4().slice(0, 6)}`;
-    const personalName = `${displayName}'s Studio`;
-    const slug = `${username.toLowerCase()}-studio`.slice(0, 32);
-    db.prepare(`
-      INSERT INTO workspaces (id, name, slug, owner_id, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run(targetWorkspaceId, personalName, slug, userId, now, now);
-    assignedRole = 'owner';
+
+    // If invitation specified a team, add member to that team
+    if (inv.team_id) {
+      db.prepare(`
+        INSERT INTO team_members (id, team_id, user_id, role, joined_at)
+        VALUES (?, ?, ?, 'member', ?)
+        ON CONFLICT(team_id, user_id) DO NOTHING
+      `).run(`tm_${uuidv4().slice(0, 8)}`, inv.team_id, userId, now);
+    }
   }
 
-  const rolesArray: UserRole[] = assignedRole === 'owner' ? ['owner', 'admin', 'developer'] : [assignedRole];
-
-  // Insert user
+  // Insert user with default developer role
   db.prepare(`
     INSERT INTO users (id, username, display_name, email, password_hash, roles, avatar_url, workspace_id, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, null, ?, ?, ?)
@@ -205,25 +218,45 @@ authRouter.post('/signup', authRateLimiter(5, 60000), (req: Request, res: Respon
     displayName,
     email,
     passwordHash,
-    JSON.stringify(rolesArray),
+    JSON.stringify(defaultRoles),
     targetWorkspaceId,
     now,
     now
   );
 
-  // Insert into workspace_members
-  if (targetWorkspaceId) {
-    db.prepare(`
-      INSERT INTO workspace_members (id, workspace_id, user_id, role, joined_at)
-      VALUES (?, ?, ?, ?, ?)
-    `).run(
-      `wm_${Date.now()}_${uuidv4().slice(0, 8)}`,
-      targetWorkspaceId,
-      userId,
-      assignedRole,
-      now
-    );
-  }
+  // Insert into workspace_members (pending_approval if uninvited, active if invited)
+  db.prepare(`
+    INSERT INTO workspace_members (id, workspace_id, user_id, role, status, joined_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(
+    `wm_${Date.now()}_${uuidv4().slice(0, 8)}`,
+    targetWorkspaceId,
+    userId,
+    assignedMemberRole,
+    memberStatus,
+    now
+  );
+
+  // Record audit log for account creation
+  AdminService.logAudit({
+    workspaceId: targetWorkspaceId,
+    actorId: userId,
+    actorName: displayName,
+    action: 'account_created',
+    targetType: 'user',
+    targetId: userId,
+    targetName: displayName,
+    details: {
+      username,
+      email: email.toLowerCase(),
+      hasInvitation: Boolean(invitationToken && invitationToken.trim()),
+      role: assignedMemberRole,
+      status: memberStatus
+    },
+    reason: invitationToken && invitationToken.trim()
+      ? 'Registered account with authorized studio invitation.'
+      : 'Registered account with default developer role; pending workspace approval.'
+  });
 
   // Auto-login
   const { sessionToken, csrfToken } = createSession(userId);
@@ -251,7 +284,7 @@ authRouter.post('/signup', authRateLimiter(5, 60000), (req: Request, res: Respon
       username,
       displayName,
       email,
-      roles: rolesArray,
+      roles: defaultRoles,
       avatarUrl: null,
       workspaceId: targetWorkspaceId
     },
